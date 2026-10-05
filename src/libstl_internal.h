@@ -138,8 +138,8 @@ STL_PRIVATE size_t STL_CALL stl__hash_strptr(const void *key);
 /* In C89 there are no variadic macros, so the formatter is reached through a
  * real function instead: stl__set_error_at() is a thin wrapper that adds the
  * source location. */
-void stl__set_error_at(stl_error_code code, const char *file, int line,
-                       const char *fmt, ...);
+STL_PRIVATE void stl__set_error_at(stl_error_code code, const char *file, int line,
+                                   const char *fmt, ...);
 
 #if defined(__cplusplus) || (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L))
 #  define STL_REPORT_RANGE(idx, size) \

@@ -220,8 +220,8 @@ stl_error_fn stl_set_error_handler(stl_error_fn handler)
 }
 
 /* C89-compatible entry point used by the internal reporting macros. */
-void stl__set_error_at(stl_error_code code, const char *file, int line,
-                       const char *fmt, ...)
+STL_PRIVATE void stl__set_error_at(stl_error_code code, const char *file, int line,
+                                   const char *fmt, ...)
 {
     char buffer[512];
     va_list ap;
