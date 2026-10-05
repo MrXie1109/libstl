@@ -614,15 +614,17 @@ void stl_iota(void *base, size_t count, size_t elem_size, const void *start, con
     if (elem_size == sizeof(int)) {
         int v = *(const int *)start;
         int s = (step != NULL) ? *(const int *)step : 1;
+        int *out = (int *)(void *)arr;
         for (i = 0; i < count; ++i) {
-            ((int *)arr)[i] = v;
+            out[i] = v;
             v += s;
         }
     } else if (elem_size == sizeof(double)) {
         double v = *(const double *)start;
         double s = (step != NULL) ? *(const double *)step : 1.0;
+        double *out = (double *)(void *)arr;
         for (i = 0; i < count; ++i) {
-            ((double *)arr)[i] = v;
+            out[i] = v;
             v += s;
         }
     } else {

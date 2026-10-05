@@ -201,11 +201,20 @@ $(BUILD)/%.lo: $(SRCDIR)/%.c $(HEADERS) $(SRCDIR)/libstl_internal.h
 # Libraries
 # ---------------------------------------------------------------------
 # The static library is assembled with a small Python script rather than `ar`,
-# so the same rule works with MSVC, MinGW, GNU ar and Apple libtool alike.
+# so the same rule works with MSVC, MinGW and GNU toolchains.  macOS is the
+# exception: its linker expects the BSD __.SYMDEF index and rejects the ELF
+# "/" member, so the platform libtool is used there.
+ifeq ($(PLATFORM),darwin)
+$(STATIC): $(LIB_OBJS)
+	@mkdir -p $(BUILD)
+	libtool -static -o $@ $(LIB_OBJS)
+	@echo "  [static] $@"
+else
 $(STATIC): $(LIB_OBJS) tools/make_archive.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/make_archive.py $@ $(LIB_OBJS)
 	@echo "  [static] $@"
+endif
 
 # The shared library is built with a versioned soname and a matching symlink,
 # so both `-lstl` at link time and `libstl.so.1` at run time resolve.
