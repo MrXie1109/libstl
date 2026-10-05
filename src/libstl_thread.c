@@ -94,18 +94,20 @@ int stl_hardware_concurrency(void)
     SYSTEM_INFO info;
     GetSystemInfo(&info);
     return (int)((info.dwNumberOfProcessors > 0) ? info.dwNumberOfProcessors : 1);
-#elif defined(__APPLE__)
-    /* sysconf(_SC_NPROCESSORS_ONLN) is not exposed on Darwin; the documented
-     * interface there is sysctlbyname("hw.ncpu"), with hw.logicalcpu as the
-     * count that matches hyper-threading. */
-    int ncpu = 0;
-    size_t len = sizeof(ncpu);
-    if (sysctlbyname("hw.logicalcpu", &ncpu, &len, NULL, 0) == 0 && ncpu > 0) {
-        return ncpu;
+#elif defined(__APPLE__) && STL_HAVE_PTHREAD
+    /* Darwin does not define _SC_NPROCESSORS_ONLN, and pulling in
+     * <sys/sysctl.h> for sysctlbyname() drags in headers that need the BSD
+     * u_int/u_char typedefs, which strict -std=c11 hides.  Querying the
+     * system through sysconf for the configured processor count is portable
+     * and needs no extra include; _SC_NPROCESSORS_CONF exists on Darwin. */
+#  ifdef _SC_NPROCESSORS_CONF
+    {
+        long n = sysconf(_SC_NPROCESSORS_CONF);
+        if (n > 0) {
+            return (int)n;
+        }
     }
-    if (sysctlbyname("hw.ncpu", &ncpu, &len, NULL, 0) == 0 && ncpu > 0) {
-        return ncpu;
-    }
+#  endif
     return 1;
 #elif STL_HAVE_PTHREAD
     long n = sysconf(_SC_NPROCESSORS_ONLN);

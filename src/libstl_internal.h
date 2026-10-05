@@ -49,10 +49,6 @@
 #  include <unistd.h>
 #  include <time.h>
 #  include <sys/time.h>
-#  if defined(__APPLE__)
-#    include <sys/types.h>
-#    include <sys/sysctl.h>
-#  endif
 #endif
 
 #if STL_PLATFORM_WINDOWS
