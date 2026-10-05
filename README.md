@@ -1,5 +1,7 @@
 # libstl — the STL, implemented in C
 
+[![build](https://github.com/MrXie1109/libstl/actions/workflows/build.yml/badge.svg)](https://github.com/MrXie1109/libstl/actions/workflows/build.yml)
+
 `libstl` brings the familiar C++ standard-library vocabulary to plain C:
 vector, deque, list, set/multiset, map/multimap, the unordered containers,
 stack/queue/priority_queue, string and bitset, plus the usual algorithms
@@ -174,15 +176,20 @@ and on version tags:
 | `native` | Builds and tests natively on Linux x86-64, Linux arm64, macOS arm64 and Windows x86-64 (MSVC), then uploads each platform's libraries as an artifact. |
 | `release` | On a `v*` tag, archives each native build and attaches it to the GitHub release. |
 
-Pushing a tag such as `v1.0.0` therefore produces one archive per platform:
+Pushing a tag such as `v1.0.1` therefore produces one archive per platform,
+each containing the header and that platform's native libraries:
 
-```
-libstl-1.0.0-linux-x86_64.tar.gz     libstl.h, libstl.a, libstl.so + symlinks
-libstl-1.0.0-linux-aarch64.tar.gz    libstl.h, libstl.a, libstl.so + symlinks
-libstl-1.0.0-macos-arm64.tar.gz      libstl.h, libstl.a, libstl.dylib + symlinks
-libstl-1.0.0-windows-x86_64.tar.gz   libstl.h, libstl.lib, libstl.dll
-SHA256SUMS
-```
+| Archive | Contents |
+|---|---|
+| `libstl-v1.0.1-linux-x86_64.tar.gz` | `libstl.h`, `libstl.a`, `libstl.so`, `libstl.so.1`, `libstl.so.1.0.0` |
+| `libstl-v1.0.1-linux-aarch64.tar.gz` | same as above, built for arm64 |
+| `libstl-v1.0.1-macos-arm64.tar.gz` | `libstl.h`, `libstl.a`, `libstl.dylib`, `libstl.1.dylib`, `libstl.1.0.0.dylib` |
+| `libstl-v1.0.1-windows-x86_64.tar.gz` | `libstl.h`, `libstl.lib` (static), `libstl.dll` |
+
+GitHub does not preserve symlinks in artifacts, so the versioned, major-only
+and unversioned names are shipped as three real files. Link against the
+unversioned name; the soname/install_name embedded in the binary points at the
+versioned one.
 
 ## Repository layout
 
