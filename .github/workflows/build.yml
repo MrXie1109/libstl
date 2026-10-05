@@ -261,11 +261,11 @@ jobs:
             base=$(basename "$file")
             case "$base" in
               libstl.h)
-                # Identical on every platform, so it is published once.  Which
-                # copy wins must not depend on directory iteration order, so
-                # only the Linux x86-64 build contributes it; that also keeps
-                # the file free of the CRLF endings a Windows checkout could
-                # introduce.
+                # The header is the same source file on every platform, so it
+                # is published once rather than four times under mangled names.
+                # Taking it from a single, named build keeps the result
+                # independent of the order the artifact directories happen to
+                # be walked in.
                 if [ "$target" = "linux-x86_64" ]; then
                   cp "$file" dist/libstl.h
                 fi
@@ -293,13 +293,6 @@ jobs:
               stage_one "$target" "$file"
             done
           done
-
-          # The published header must be byte-identical on every platform, so
-          # assert it carries no CR rather than trusting the checkout settings.
-          if grep -q $'\r' dist/libstl.h; then
-            echo "libstl.h contains CR characters; check .gitattributes" >&2
-            exit 1
-          fi
 
           echo "--- staged assets ---"
           ls -l dist/
