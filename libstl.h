@@ -81,8 +81,19 @@
 #  define STL_PLATFORM_MSVC 0
 #endif
 
-/* Shared library import/export decoration. */
-#if STL_PLATFORM_MSVC
+/* Shared library import/export decoration.
+ *
+ * Three cases matter:
+ *
+ *   MSVC, MinGW, clang-cl -- __declspec(dllexport/dllimport).  MSVC's linker
+ *       only exports decorated symbols, so nothing internal leaks; the GNU
+ *       MinGW driver exports everything by default, so the build additionally
+ *       passes --exclude-all-symbols to restrict the export table to the
+ *       symbols decorated with STL_API.
+ *   ELF (GCC/Clang)       -- symbol visibility attributes.
+ *   Anything else         -- no decoration.
+ */
+#if STL_PLATFORM_MSVC || defined(__MINGW32__) || defined(__MINGW64__)
 #  if defined(STL_BUILD_SHARED)
 #    define STL_API __declspec(dllexport)
 #  elif defined(STL_USE_SHARED)
@@ -90,13 +101,15 @@
 #  else
 #    define STL_API
 #  endif
-#  define STL_INLINE static __inline
-#elif defined(__GNUC__) || defined(__clang__)
-#  define STL_API __attribute__((visibility("default")))
 #  define STL_INLINE static __inline__
 #else
-#  define STL_API
-#  define STL_INLINE static
+#  if defined(__GNUC__) || defined(__clang__)
+#    define STL_API __attribute__((visibility("default")))
+#    define STL_INLINE static __inline__
+#  else
+#    define STL_API
+#    define STL_INLINE static
+#  endif
 #endif
 
 /* C89 has no `inline` keyword, so STL_INLINE resolves to a plain static

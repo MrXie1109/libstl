@@ -728,6 +728,9 @@ int stl_parallel_for_each(void *base, size_t count, size_t elem_size,
     if (base == NULL || fn == NULL || elem_size == 0) {
         return 0;
     }
+#if !STL_HAVE_PTHREAD
+    STL_UNUSED(nthreads);
+#endif
 #if STL_HAVE_PTHREAD
     {
         stl__parallel_job job;
@@ -751,6 +754,9 @@ int stl_parallel_sort(void *base, size_t count, size_t elem_size,
     if (base == NULL || count < 2 || elem_size == 0) {
         return 0;
     }
+#if !STL_HAVE_PTHREAD
+    STL_UNUSED(nthreads);
+#endif
 #if STL_HAVE_PTHREAD
     {
         stl__parallel_job job;
@@ -801,6 +807,9 @@ int stl_parallel_merge_sort(void *base, size_t count, size_t elem_size,
     if (base == NULL || count < 2 || elem_size == 0) {
         return 0;
     }
+#if !STL_HAVE_PTHREAD
+    STL_UNUSED(nthreads);
+#endif
 #if STL_HAVE_PTHREAD
     {
         stl__parallel_job job;
@@ -843,6 +852,9 @@ int stl_parallel_transform(const void *src, void *dst, size_t count, size_t elem
     if (src == NULL || dst == NULL || op == NULL || elem_size == 0) {
         return 0;
     }
+#if !STL_HAVE_PTHREAD
+    STL_UNUSED(nthreads);
+#endif
 #if STL_HAVE_PTHREAD
     {
         stl__parallel_job job;

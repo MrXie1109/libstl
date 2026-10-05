@@ -1,0 +1,145 @@
+# Makefile.msvc -- nmake build for libstl on Windows.
+#
+# The POSIX Makefile cannot be used with nmake: the shell is cmd.exe, the
+# toolchain is cl.exe/lib.exe/link.exe, and the object, static-library and
+# shared-library names all differ.  Keeping a separate file is clearer than
+# covering both dialects in one, and it lets the CI job simply run
+# `nmake /f Makefile.msvc`.
+#
+# Targets:
+#   all     build build\libstl.lib and build\libstl.dll
+#   test    build and run the self tests
+#   clean   remove the build directory
+#
+# Run this from a "Developer Command Prompt", or after vcvarsall.bat has set
+# up the environment (the CI job uses ilammy/msvc-dev-cmd for that).
+
+CC       = cl
+LINK     = link
+BUILD    = build
+SRCDIR   = src
+
+VERSION_MAJOR = 1
+VERSION_MINOR = 0
+VERSION_PATCH = 0
+VERSION       = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+
+# /W4 is the closest equivalent of -Wall -Wextra.  /wd4996 silences the
+# "unsafe CRT function" deprecation noise for memcpy/strcpy/vsnprintf, which
+# this library uses deliberately.
+WARNINGS = /W4 /wd4996
+DEFS     = /DSTL_DISABLE_THREADS
+INCLUDES = /I. /Isrc
+
+# /MD uses the DLL CRT; /O2 optimises.  Add /Zi for debug info.
+CFLAGS   = /nologo /std:c11 /O2 $(WARNINGS) $(DEFS) $(INCLUDES) /MD
+LDFLAGS  = /nologo
+
+# Static-library objects must not define STL_BUILD_SHARED (that macro selects
+# __declspec(dllexport), which would make the static library export symbols
+# it should simply define).
+STATIC_CFLAGS = $(CFLAGS)
+SHARED_CFLAGS = $(CFLAGS) /DSTL_BUILD_SHARED
+
+LIB_SRCS = $(SRCDIR)\libstl_adaptor.c $(SRCDIR)\libstl_algo.c        \
+           $(SRCDIR)\libstl_bitset.c  $(SRCDIR)\libstl_core.c        \
+           $(SRCDIR)\libstl_deque.c   $(SRCDIR)\libstl_hash.c        \
+           $(SRCDIR)\libstl_hashset.c $(SRCDIR)\libstl_list.c        \
+           $(SRCDIR)\libstl_map.c     $(SRCDIR)\libstl_set.c         \
+           $(SRCDIR)\libstl_string.c  $(SRCDIR)\libstl_thread.c      \
+           $(SRCDIR)\libstl_tree.c    $(SRCDIR)\libstl_vector.c
+
+LIB_OBJS   = $(BUILD)\libstl_adaptor.obj $(BUILD)\libstl_algo.obj      \
+             $(BUILD)\libstl_bitset.obj  $(BUILD)\libstl_core.obj      \
+             $(BUILD)\libstl_deque.obj   $(BUILD)\libstl_hash.obj      \
+             $(BUILD)\libstl_hashset.obj $(BUILD)\libstl_list.obj      \
+             $(BUILD)\libstl_map.obj     $(BUILD)\libstl_set.obj       \
+             $(BUILD)\libstl_string.obj  $(BUILD)\libstl_thread.obj    \
+             $(BUILD)\libstl_tree.obj    $(BUILD)\libstl_vector.obj
+
+SHARED_OBJS = $(BUILD)\shared_adaptor.obj $(BUILD)\shared_algo.obj     \
+              $(BUILD)\shared_bitset.obj  $(BUILD)\shared_core.obj     \
+              $(BUILD)\shared_deque.obj   $(BUILD)\shared_hash.obj     \
+              $(BUILD)\shared_hashset.obj $(BUILD)\shared_list.obj     \
+              $(BUILD)\shared_map.obj     $(BUILD)\shared_set.obj      \
+              $(BUILD)\shared_string.obj  $(BUILD)\shared_thread.obj   \
+              $(BUILD)\shared_tree.obj    $(BUILD)\shared_vector.obj
+
+STATIC_LIB = $(BUILD)\libstl.lib
+SHARED_LIB = $(BUILD)\libstl.dll
+
+all: $(STATIC_LIB) $(SHARED_LIB)
+
+# ---------------------------------------------------------------------
+# Compilation
+# ---------------------------------------------------------------------
+# One inference rule per output flavour; nmake has no pattern rules, so the
+# source->object mapping is spelled out explicitly.
+{$(SRCDIR)}.c{$(BUILD)}.obj::
+	@if not exist $(BUILD) mkdir $(BUILD)
+	$(CC) $(STATIC_CFLAGS) /c /Fo$@ $<
+
+{$(SRCDIR)}.c{$(BUILD)}.obj:
+	@if not exist $(BUILD) mkdir $(BUILD)
+	$(CC) $(STATIC_CFLAGS) /c /Fo$@ $<
+
+# ---------------------------------------------------------------------
+# Libraries
+# ---------------------------------------------------------------------
+$(STATIC_LIB): $(LIB_OBJS)
+	lib /nologo /OUT:$@ $(LIB_OBJS)
+	@echo   [static] $@
+
+# The DLL is linked from a second set of objects compiled with
+# //DSTL_BUILD_SHARED.  nmake cannot express "same sources, different flags"
+# with an inference rule, so each one is built explicitly.
+$(SHARED_LIB): $(SHARED_OBJS)
+	$(LINK) /DLL /OUT:$@ /IMPLIB:$(BUILD)\libstl.lib $(SHARED_OBJS)
+	@echo   [shared] $@
+
+$(BUILD)\shared_adaptor.obj: $(SRCDIR)\libstl_adaptor.c
+	@if not exist $(BUILD) mkdir $(BUILD)
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_algo.obj: $(SRCDIR)\libstl_algo.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_bitset.obj: $(SRCDIR)\libstl_bitset.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_core.obj: $(SRCDIR)\libstl_core.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_deque.obj: $(SRCDIR)\libstl_deque.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_hash.obj: $(SRCDIR)\libstl_hash.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_hashset.obj: $(SRCDIR)\libstl_hashset.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_list.obj: $(SRCDIR)\libstl_list.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_map.obj: $(SRCDIR)\libstl_map.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_set.obj: $(SRCDIR)\libstl_set.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_string.obj: $(SRCDIR)\libstl_string.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_thread.obj: $(SRCDIR)\libstl_thread.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_tree.obj: $(SRCDIR)\libstl_tree.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+$(BUILD)\shared_vector.obj: $(SRCDIR)\libstl_vector.c
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+
+# ---------------------------------------------------------------------
+# Tests (linked against the static library)
+# ---------------------------------------------------------------------
+test: $(STATIC_LIB)
+	@if not exist $(BUILD) mkdir $(BUILD)
+	$(CC) $(STATIC_CFLAGS) /Fe$(BUILD)\test_libstl.exe tests\test_libstl.c $(STATIC_LIB)
+	$(CC) $(STATIC_CFLAGS) /Fe$(BUILD)\test_macros.exe tests\test_macros.c $(STATIC_LIB)
+	$(BUILD)\test_libstl.exe
+	$(BUILD)\test_macros.exe
+
+clean:
+	@if exist $(BUILD) rmdir /s /q $(BUILD)
+
+distclean: clean
+
+.PHONY: all test clean distclean

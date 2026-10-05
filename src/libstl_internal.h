@@ -17,13 +17,14 @@
 #  define _XOPEN_SOURCE 700
 #endif
 
-/* The shared library is linked with -fvisibility=hidden so that only the
- * documented interface is exported.  GCC and Clang derive a symbol's
- * visibility from its *definition*, so every public definition would have to
- * repeat STL_API -- noisy and easy to forget.  Instead the build keeps symbols
- * visible by default and marks the internal ones, which are uniformly prefixed
- * with `stl__` (double underscore), as hidden through this macro. */
-#if defined(__GNUC__) || defined(__clang__)
+/* Internal symbols -- uniformly prefixed with `stl__` -- are hidden so that
+ * only the documented interface is exported from the shared library.  Symbol
+ * visibility is an ELF concept: GCC and Clang accept the attribute on ELF
+ * targets but warn and ignore it for Mach-O and PE/COFF, and MSVC has no
+ * equivalent at all.  Gate it on the object format rather than on the
+ * compiler, so MinGW and clang-cl stay warning-free. */
+#if (defined(__GNUC__) || defined(__clang__)) && \
+    !defined(_WIN32) && !defined(__CYGWIN__) && !defined(__APPLE__)
 #  define STL_PRIVATE __attribute__((visibility("hidden")))
 #else
 #  define STL_PRIVATE

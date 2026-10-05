@@ -1,0 +1,210 @@
+name: build
+
+# Builds and tests libstl on Linux, macOS and Windows, then publishes the
+# native static and shared library of each platform as a release asset.
+#
+# The point of running all three is that the library makes real platform
+# assumptions: it swaps __attribute__ for __declspec, drops the pthread code
+# path on Windows, and picks a different shared-library format (.so / .dylib /
+# .dll) and linker flags on each target.
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ------------------------------------------------------------------
+  # Portability gate: the same sources under many language standards and
+  # two compilers.  This is where a stray GNU extension gets caught.
+  # ------------------------------------------------------------------
+  standards:
+    name: ${{ matrix.compiler }} / ${{ matrix.std }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [ gcc, clang ]
+        std: [ c89, c99, c11, c17 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            echo "CC=gcc" >> "$GITHUB_ENV"
+          else
+            echo "CC=clang" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build (strict, warnings as errors)
+        run: |
+          make clean
+          make CSTD="-std=${{ matrix.std }}" \
+               WARNINGS="-Wall -Wextra -Werror" \
+               STL_NO_CONVENIENCE_MACROS=1 \
+               all
+
+      - name: Build with the convenience macro layer
+        run: |
+          make clean
+          make CSTD="-std=${{ matrix.std }}" all
+
+  # ------------------------------------------------------------------
+  # Sanitizers and the optional feature switches.
+  # ------------------------------------------------------------------
+  sanitizers:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: asan+ubsan
+            target: asan
+          - name: cleanup-helpers
+            target: test-cleanup
+          - name: no-pthread
+            target: test-nothreads
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pthreads headers
+        run: sudo apt-get update && sudo apt-get install -y libc6-dev
+
+      - name: Run ${{ matrix.target }}
+        run: make ${{ matrix.target }}
+
+  # ------------------------------------------------------------------
+  # Native builds.  Each platform produces its own static and shared
+  # library, named the way that platform expects.
+  # ------------------------------------------------------------------
+  native:
+    name: native ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x86_64
+            artifact: linux-x86_64
+          - os: ubuntu-24.04-arm
+            label: linux-aarch64
+            artifact: linux-aarch64
+          - os: macos-14
+            label: macos-arm64
+            artifact: macos-arm64
+          - os: windows-latest
+            label: windows-x86_64
+            artifact: windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------------- Linux / macOS (gcc or clang, POSIX shell) ----------
+      - name: Build and test (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          make clean
+          make all
+          make test
+          echo "--- artefacts ---"
+          ls -l build/
+
+      - name: Collect artefacts (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p stage
+          cp libstl.h stage/
+          case "${{ runner.os }}" in
+            Linux)
+              cp build/libstl.a stage/
+              cp build/libstl.so.*. stage/libstl.so 2>/dev/null || true
+              cp -P build/libstl.so.1 stage/ 2>/dev/null || true
+              cp -P build/libstl.so.1.0.0 stage/ 2>/dev/null || true
+              ;;
+            macOS)
+              cp build/libstl.a stage/
+              cp -P build/libstl.1.0.0.dylib stage/ 2>/dev/null || true
+              cp -P build/libstl.1.dylib stage/ 2>/dev/null || true
+              cp -P build/libstl.dylib stage/ 2>/dev/null || true
+              ;;
+          esac
+          find stage -maxdepth 1 -type l -print
+          ls -l stage/
+
+      # ---------------- Windows (MSVC) ------------------------------------
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build and test (MSVC)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          nmake /f Makefile.msvc clean
+          nmake /f Makefile.msvc all
+          nmake /f Makefile.msvc test
+
+      - name: Collect artefacts (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          mkdir stage
+          copy libstl.h stage\
+          copy build\libstl.lib stage\
+          copy build\libstl.dll stage\
+          dir stage
+
+      - name: Upload ${{ matrix.artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: stage/*
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # Publish.  On a version tag each native build is archived into a single
+  # file per platform and attached to the release.
+  # ------------------------------------------------------------------
+  release:
+    name: publish release assets
+    needs: [ standards, sanitizers, native ]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download every native build
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Package one archive per platform
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            echo "packaging $name"
+            tar -czf "dist/libstl-${GITHUB_REF_NAME}-${name}.tar.gz" -C "$dir" .
+          done
+          cd dist && sha256sum ./*.tar.gz > SHA256SUMS && cat SHA256SUMS
+
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true

@@ -162,6 +162,28 @@ Points worth calling out:
   reporting macros route through real variadic functions instead, so the
   library sources still compile as C89.
 
+## Continuous integration
+
+`.github/workflows/build.yml` runs on every push to `main`, on pull requests,
+and on version tags:
+
+| Job | Purpose |
+|---|---|
+| `standards` | Builds with GCC and Clang under `c89`, `c99`, `c11` and `c17`, with warnings as errors, and once more with the convenience macro layer enabled. Catches stray compiler extensions. |
+| `sanitizers` | Runs the test suites under AddressSanitizer + UBSan, with `STL_ENABLE_CLEANUP`, and with pthread support compiled out. |
+| `native` | Builds and tests natively on Linux x86-64, Linux arm64, macOS arm64 and Windows x86-64 (MSVC), then uploads each platform's libraries as an artifact. |
+| `release` | On a `v*` tag, archives each native build and attaches it to the GitHub release. |
+
+Pushing a tag such as `v1.0.0` therefore produces one archive per platform:
+
+```
+libstl-1.0.0-linux-x86_64.tar.gz     libstl.h, libstl.a, libstl.so + symlinks
+libstl-1.0.0-linux-aarch64.tar.gz    libstl.h, libstl.a, libstl.so + symlinks
+libstl-1.0.0-macos-arm64.tar.gz      libstl.h, libstl.a, libstl.dylib + symlinks
+libstl-1.0.0-windows-x86_64.tar.gz   libstl.h, libstl.lib, libstl.dll
+SHA256SUMS
+```
+
 ## Repository layout
 
 ```
@@ -183,6 +205,9 @@ src/libstl_bitset.c      bitset
 src/libstl_thread.c      spinlock, rwlock, thread-safe wrappers, parallel algos
 tests/test_libstl.c      main test suite
 tests/test_macros.c      macro-layer test suite
+tools/make_archive.py    portable static-library writer (no `ar` dependency)
+Makefile.msvc            nmake build for MSVC
+.github/workflows/       CI: standards matrix, sanitizers, native builds, release
 ```
 
 > The task called for `libstl.h` plus `libstl.c`. The implementation is split
@@ -212,7 +237,7 @@ tests/test_macros.c      macro-layer test suite
 | `STL_VERBOSE` | Default error handler prints to stderr |
 | `STL_DEBUG_INVARIANTS` | Enable container structural self-checks |
 | `NDEBUG` | Disable the internal `STL_CHECK` contract checks |
-| `STL_BUILD_SHARED` / `STL_USE_SHARED` | Windows DLL export/import |
+| `STL_BUILD_SHARED` / `STL_USE_SHARED` | Windows DLL export/import (`__declspec`; also honoured by MinGW) |
 
 ## Complexity
 
