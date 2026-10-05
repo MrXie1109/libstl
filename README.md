@@ -215,6 +215,21 @@ cp libstl-linux-x86_64.so* /usr/local/lib/     # strip the -linux-x86_64 part
 cp libstl.h                /usr/local/include/
 ```
 
+## API documentation
+
+The public header is fully annotated in Doxygen format: every declaration has a
+brief, its parameters and its return value, and each container section opens
+with a group that covers complexity, iterator invalidation and a worked
+example.  To build the HTML reference:
+
+```sh
+doxygen Doxyfile          # writes build/docs/html/index.html
+```
+
+`WARN_AS_ERROR` is enabled, so a dangling reference or an unclosed group fails
+the build instead of silently producing incomplete output; CI runs it on every
+push.
+
 ## Repository layout
 
 ```
@@ -236,6 +251,7 @@ src/libstl_bitset.c      bitset
 src/libstl_thread.c      spinlock, rwlock, thread-safe wrappers, parallel algos
 tests/test_libstl.c      main test suite
 tests/test_macros.c      macro-layer test suite
+Doxyfile                 API reference configuration
 tools/make_archive.py    portable static-library writer (no `ar` dependency)
 Makefile.msvc            nmake build for MSVC
 .github/workflows/       CI: standards matrix, sanitizers, native builds, release

@@ -82,6 +82,26 @@ jobs:
         run: make ${{ matrix.target }}
 
   # ------------------------------------------------------------------
+  # Documentation.  Doxygen runs with WARN_AS_ERROR, so a dangling \ref, an
+  # unclosed @defgroup or a malformed block fails the build rather than
+  # quietly degrading the published reference.
+  # ------------------------------------------------------------------
+  docs:
+    name: doxygen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen
+
+      - name: Build the reference
+        run: |
+          doxygen Doxyfile
+          test -f build/docs/html/index.html
+          echo "generated $(find build/docs/html -name '*.html' | wc -l) pages"
+
+  # ------------------------------------------------------------------
   # Native builds.  Each platform produces its own static and shared
   # library, named the way that platform expects.
   # ------------------------------------------------------------------
@@ -211,7 +231,7 @@ jobs:
   # ------------------------------------------------------------------
   release:
     name: publish release assets
-    needs: [ standards, sanitizers, native ]
+    needs: [ standards, sanitizers, docs, native ]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
