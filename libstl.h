@@ -2620,19 +2620,26 @@ typedef struct stl_pair {
  *
  * @param elem_size size of one key/value element in bytes
  * @param value_offset byte offset of the value within that element
+ * @param value_size byte size of the value; 0 means "runs to the end of the
+ *                   element"
  * @param key_size byte size of the key, which starts at offset 0
  * @param key_cmp ordering predicate over keys, or NULL for the default
  * @param elem_dtor optional destructor, or NULL
  * @return the new map, or NULL on failure
  *
+ * The value size matters when the element has bytes after the value, whether
+ * padding or another field: pass the real size so that reads and writes stay
+ * inside it.
+ *
  * @code
  * typedef struct { int key; const char *value; } entry;
  * stl_map *m = stl_map_new(sizeof(entry), STL_OFFSETOF(entry, value),
- *                          sizeof(int), stl_cmp_int32, NULL);
+ *                          sizeof(const char *), sizeof(int),
+ *                          stl_cmp_int32, NULL);
  * @endcode
  */
-STL_API stl_map *stl_map_new(size_t elem_size, size_t value_offset, size_t key_size,
-                             stl_compare_fn key_cmp, stl_dtor_fn elem_dtor);
+STL_API stl_map *stl_map_new(size_t elem_size, size_t value_offset, size_t value_size,
+                             size_t key_size, stl_compare_fn key_cmp, stl_dtor_fn elem_dtor);
 
 /** @brief Create an ordered map that allocates through a specific allocator.
  *  @param elem_size size of one key/value element in bytes
@@ -2642,8 +2649,8 @@ STL_API stl_map *stl_map_new(size_t elem_size, size_t value_offset, size_t key_s
  *  @param elem_dtor optional destructor, or NULL
  *  @param a allocator, or NULL for the default
  *  @return the new map, or NULL on failure */
-STL_API stl_map *stl_map_new_a(size_t elem_size, size_t value_offset, size_t key_size,
-                               stl_compare_fn key_cmp, stl_dtor_fn elem_dtor,
+STL_API stl_map *stl_map_new_a(size_t elem_size, size_t value_offset, size_t value_size,
+                               size_t key_size, stl_compare_fn key_cmp, stl_dtor_fn elem_dtor,
                                const stl_allocator *a);
 
 /** @brief Create an ordered map or multimap.
@@ -2655,8 +2662,8 @@ STL_API stl_map *stl_map_new_a(size_t elem_size, size_t value_offset, size_t key
  *  @param elem_dtor optional destructor, or NULL
  *  @param a allocator, or NULL for the default
  *  @return the new map, or NULL on failure */
-STL_API stl_map *stl_map_new_policy(size_t elem_size, size_t value_offset, size_t key_size,
-                                    stl_compare_fn key_cmp, stl_map_policy policy,
+STL_API stl_map *stl_map_new_policy(size_t elem_size, size_t value_offset, size_t value_size,
+                                    size_t key_size, stl_compare_fn key_cmp, stl_map_policy policy,
                                     stl_dtor_fn elem_dtor, const stl_allocator *a);
 
 /** @brief Destroy a map.
@@ -3290,8 +3297,9 @@ typedef stl_hashtable_node stl_hashmap_node;
  * The element layout is the same as for @ref stl_map_new, so the same pair
  * struct works with either container.
  */
-STL_API stl_hashmap *stl_hashmap_new(size_t elem_size, size_t value_offset, size_t key_size,
-                                     stl_hash_fn hash, stl_equal_fn key_eq, stl_dtor_fn elem_dtor);
+STL_API stl_hashmap *stl_hashmap_new(size_t elem_size, size_t value_offset, size_t value_size,
+                                     size_t key_size, stl_hash_fn hash, stl_equal_fn key_eq,
+                                     stl_dtor_fn elem_dtor);
 
 /** @brief Create an unordered map that allocates through a specific allocator.
  *  @param elem_size size of one key/value element in bytes
@@ -3302,9 +3310,9 @@ STL_API stl_hashmap *stl_hashmap_new(size_t elem_size, size_t value_offset, size
  *  @param elem_dtor optional destructor, or NULL
  *  @param a allocator, or NULL for the default
  *  @return the new map, or NULL on failure */
-STL_API stl_hashmap *stl_hashmap_new_a(size_t elem_size, size_t value_offset, size_t key_size,
-                                       stl_hash_fn hash, stl_equal_fn key_eq, stl_dtor_fn elem_dtor,
-                                       const stl_allocator *a);
+STL_API stl_hashmap *stl_hashmap_new_a(size_t elem_size, size_t value_offset, size_t value_size,
+                                       size_t key_size, stl_hash_fn hash, stl_equal_fn key_eq,
+                                       stl_dtor_fn elem_dtor, const stl_allocator *a);
 
 /** @brief Create an unordered map or multimap.
  *  @param elem_size size of one key/value element in bytes
@@ -3316,8 +3324,8 @@ STL_API stl_hashmap *stl_hashmap_new_a(size_t elem_size, size_t value_offset, si
  *  @param elem_dtor optional destructor, or NULL
  *  @param a allocator, or NULL for the default
  *  @return the new map, or NULL on failure */
-STL_API stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_t key_size,
-                                            stl_hash_fn hash, stl_equal_fn key_eq,
+STL_API stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_t value_size,
+                                            size_t key_size, stl_hash_fn hash, stl_equal_fn key_eq,
                                             stl_hashtable_policy policy, stl_dtor_fn elem_dtor,
                                             const stl_allocator *a);
 
@@ -5914,7 +5922,7 @@ STL_INLINE stl_compare_fn stl__cmp_select(int width)
  * Usage:
  *
  *     stl_define_pair(int_pair, int, int);
- *     stl_map *m = stl_pair_map_new(int_pair, int);
+ *     stl_map *m = stl_pair_map_new(int_pair, int, int);   <- the two ints are K and V
  *     int_pair p = stl_pair_make(int_pair, 1, 2);
  *     stl_map_put(m, &p.key, &p.value);
  */
@@ -5932,13 +5940,13 @@ STL_INLINE stl_compare_fn stl__cmp_select(int width)
 #define stl_pair_make(type, k, v)   ((type){ (k), (v) })
 
 /* Map over a named pair type whose key is the `key` member. */
-#define stl_pair_map_new(type, K)                                           \
-    stl_map_new(sizeof(type), stl_offsetof(type, value), sizeof(K),         \
-                stl_cmp_field(type, key), NULL)
+#define stl_pair_map_new(type, K, V)                                        \
+    stl_map_new(sizeof(type), stl_offsetof(type, value), sizeof(V),         \
+                sizeof(K), stl_cmp_field(type, key), NULL)
 
-#define stl_pair_hashmap_new(type, K, hash_fn, eq_fn)                       \
-    stl_hashmap_new(sizeof(type), stl_offsetof(type, value), sizeof(K),     \
-                    (hash_fn), (eq_fn), NULL)
+#define stl_pair_hashmap_new(type, K, V, hash_fn, eq_fn)                    \
+    stl_hashmap_new(sizeof(type), stl_offsetof(type, value), sizeof(V),     \
+                    sizeof(K), (hash_fn), (eq_fn), NULL)
 
 /* Convenience: put a value using a plain key expression (named pair type). */
 #define stl_map_put_pair(m, type, k, v)                                     \

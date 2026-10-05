@@ -460,7 +460,7 @@ typedef struct int_pair {
 static stl_map *make_int_map(void)
 {
     return stl_map_new(sizeof(int_pair), offsetof(int_pair, value), sizeof(int),
-                       stl_cmp_int32, NULL);
+                       sizeof(int), stl_cmp_int32, NULL);
 }
 
 static void test_map(void)
@@ -567,7 +567,8 @@ static void test_map(void)
     SECTION("multimap");
     {
         stl_map *mm = stl_map_new_policy(sizeof(int_pair), offsetof(int_pair, value),
-                                         sizeof(int), stl_cmp_int32, STL_MAP_MULTI, NULL, NULL);
+                                         sizeof(int), sizeof(int), stl_cmp_int32,
+                                         STL_MAP_MULTI, NULL, NULL);
         int_pair p;
         int k;
         for (k = 0; k < 3; ++k) {
@@ -628,7 +629,8 @@ static void test_hash(void)
     SECTION("hashmap");
     {
         stl_hashmap *hm = stl_hashmap_new(sizeof(int_pair), offsetof(int_pair, value),
-                                          sizeof(int), stl_hash_int, stl_eq_int, NULL);
+                                          sizeof(int), sizeof(int), stl_hash_int,
+                                          stl_eq_int, NULL);
         int i;
         for (i = 0; i < 1000; ++i) {
             CHECK(stl_hashmap_put(hm, &i, &i) != NULL);
@@ -666,7 +668,8 @@ static void test_hash(void)
     SECTION("hash stress");
     {
         stl_hashmap *hm = stl_hashmap_new(sizeof(int_pair), offsetof(int_pair, value),
-                                          sizeof(int), stl_hash_int, stl_eq_int, NULL);
+                                          sizeof(int), sizeof(int), stl_hash_int,
+                                          stl_eq_int, NULL);
         unsigned int seed = 12345;
         int i;
         /* Insert keys in a pseudo-random order to exercise rehashing. */
@@ -1308,7 +1311,8 @@ static void test_custom_allocator(void)
         for (i = 0; i < COUNT; ++i) {
             maps[i] = make_int_map();
             hmaps[i] = stl_hashmap_new(sizeof(int_pair), offsetof(int_pair, value),
-                                       sizeof(int), stl_hash_int, stl_eq_int, NULL);
+                                       sizeof(int), sizeof(int), stl_hash_int,
+                                       stl_eq_int, NULL);
             if (maps[i] != NULL && hmaps[i] != NULL) {
                 ++created;
             }

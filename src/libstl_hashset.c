@@ -106,6 +106,7 @@ void stl_hashset_foreach_c(const stl_hashset *s, stl_visit_fn fn, void *user)
 struct stl_hashmap {
     stl_hashtable *table;
     size_t         value_offset;
+    size_t         value_size;
 };
 
 static size_t stl__hashmap_value_offset(const stl_hashmap *m)
@@ -113,14 +114,17 @@ static size_t stl__hashmap_value_offset(const stl_hashmap *m)
     return (m != NULL) ? m->value_offset : 0;
 }
 
-stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_t key_size,
-                                    stl_hash_fn hash, stl_equal_fn key_eq,
+stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_t value_size,
+                                    size_t key_size, stl_hash_fn hash, stl_equal_fn key_eq,
                                     stl_hashtable_policy policy, stl_dtor_fn elem_dtor,
                                     const stl_allocator *a)
 {
     stl_hashmap *m;
 
-    if (elem_size == 0 || key_size == 0 || value_offset >= elem_size) {
+    if (value_size == 0) {
+        value_size = elem_size - value_offset;
+    }
+    if (elem_size == 0 || key_size == 0 || value_size > elem_size - value_offset) {
         STL_REPORT_INVALID("hashmap needs a non-empty key and a value inside the element");
         return NULL;
     }
@@ -137,21 +141,24 @@ stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_
         return NULL;
     }
     m->value_offset = value_offset;
+    m->value_size = value_size;
     return m;
 }
 
-stl_hashmap *stl_hashmap_new_a(size_t elem_size, size_t value_offset, size_t key_size,
-                               stl_hash_fn hash, stl_equal_fn key_eq, stl_dtor_fn elem_dtor,
-                               const stl_allocator *a)
+stl_hashmap *stl_hashmap_new_a(size_t elem_size, size_t value_offset, size_t value_size,
+                               size_t key_size, stl_hash_fn hash, stl_equal_fn key_eq,
+                               stl_dtor_fn elem_dtor, const stl_allocator *a)
 {
-    return stl_hashmap_new_policy(elem_size, value_offset, key_size, hash, key_eq,
+    return stl_hashmap_new_policy(elem_size, value_offset, value_size, key_size, hash, key_eq,
                                   STL_HASHTABLE_UNIQUE, elem_dtor, a);
 }
 
-stl_hashmap *stl_hashmap_new(size_t elem_size, size_t value_offset, size_t key_size,
-                             stl_hash_fn hash, stl_equal_fn key_eq, stl_dtor_fn elem_dtor)
+stl_hashmap *stl_hashmap_new(size_t elem_size, size_t value_offset, size_t value_size,
+                             size_t key_size, stl_hash_fn hash, stl_equal_fn key_eq,
+                             stl_dtor_fn elem_dtor)
 {
-    return stl_hashmap_new_a(elem_size, value_offset, key_size, hash, key_eq, elem_dtor, NULL);
+    return stl_hashmap_new_a(elem_size, value_offset, value_size, key_size, hash, key_eq,
+                             elem_dtor, NULL);
 }
 
 void stl_hashmap_free(stl_hashmap *m)
@@ -173,7 +180,7 @@ stl_hashmap *stl_hashmap_copy(const stl_hashmap *m, stl_copy_fn copy_elem)
     stl_hashtable_node *node;
 
     out = stl_hashmap_new_policy(stl__hashtable_elem_size(m->table), value_offset,
-                                 stl__hashtable_key_size(m->table),
+                                 m->value_size, stl__hashtable_key_size(m->table),
                                  stl__hashtable_hash(m->table), stl__hashtable_eq(m->table),
                                  stl__hashtable_policy(m->table), stl__hashtable_dtor(m->table),
                                  stl__hashtable_allocator(m->table));
@@ -279,9 +286,9 @@ void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
     if (node != NULL) {
         pair = stl_hashtable_node_data(node);
         if (value != NULL) {
-            memcpy((stl_byte *)pair + value_offset, value, elem_size - value_offset);
+            memcpy((stl_byte *)pair + value_offset, value, m->value_size);
         } else {
-            memset((stl_byte *)pair + value_offset, 0, elem_size - value_offset);
+            memset((stl_byte *)pair + value_offset, 0, m->value_size);
         }
         return pair;
     }
@@ -293,7 +300,7 @@ void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
         memset(scratch, 0, elem_size);
         memcpy(scratch, key, key_size);
         if (value != NULL) {
-            memcpy((stl_byte *)scratch + value_offset, value, elem_size - value_offset);
+            memcpy((stl_byte *)scratch + value_offset, value, m->value_size);
         }
         node = stl_hashtable_insert(m->table, scratch);
         stl_mem_free(NULL, scratch);
@@ -302,7 +309,7 @@ void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
         memset(stack, 0, elem_size);
         memcpy(stack, key, key_size);
         if (value != NULL) {
-            memcpy(stack + value_offset, value, elem_size - value_offset);
+            memcpy(stack + value_offset, value, m->value_size);
         }
         node = stl_hashtable_insert(m->table, stack);
     }

@@ -244,7 +244,7 @@ static void test_set_macros(void)
 
 static void test_map_macros(void)
 {
-    stl_map *m = stl_pair_map_new(int_pair, int);
+    stl_map *m = stl_pair_map_new(int_pair, int, int);
     int_pair *it;
 
     printf("\n== map macros ==\n");
@@ -295,7 +295,7 @@ static void test_map_macros(void)
 
 static void test_hashmap_macros(void)
 {
-    stl_hashmap *m = stl_pair_hashmap_new(int_pair, int, stl_hash_int, stl_eq_int);
+    stl_hashmap *m = stl_pair_hashmap_new(int_pair, int, int, stl_hash_int, stl_eq_int);
     int_pair *it;
 
     printf("\n== hashmap macros ==\n");

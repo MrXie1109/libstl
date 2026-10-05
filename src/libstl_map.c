@@ -14,16 +14,17 @@
 struct stl_map {
     stl_rbtree *tree;
     size_t      value_offset;   /* byte offset of the value inside an element */
-    size_t      key_size;       /* byte size of the key, which starts at 0     */
-    size_t      elem_size;      /* total element size in bytes                 */
+    size_t      value_size;     /* byte size of that value                    */
+    size_t      key_size;       /* byte size of the key, which starts at 0    */
+    size_t      elem_size;      /* total element size in bytes                */
 };
 
 /* ------------------------------------------------------------------ */
 /* Construction                                                        */
 /* ------------------------------------------------------------------ */
 
-stl_map *stl_map_new_policy(size_t elem_size, size_t value_offset, size_t key_size,
-                            stl_compare_fn key_cmp, stl_map_policy policy,
+stl_map *stl_map_new_policy(size_t elem_size, size_t value_offset, size_t value_size,
+                            size_t key_size, stl_compare_fn key_cmp, stl_map_policy policy,
                             stl_dtor_fn elem_dtor, const stl_allocator *a)
 {
     stl_map *m;
@@ -32,7 +33,10 @@ stl_map *stl_map_new_policy(size_t elem_size, size_t value_offset, size_t key_si
         STL_REPORT_INVALID("map needs non-zero element and key sizes");
         return NULL;
     }
-    if (key_size > elem_size || value_offset >= elem_size) {
+    if (value_size == 0) {
+        value_size = elem_size - value_offset;      /* value runs to the end */
+    }
+    if (key_size > elem_size || value_size > elem_size - value_offset) {
         stl__set_error_at(STL_ERR_INVALID, __FILE__, __LINE__,
                           "map key/value layout does not fit element size %lu",
                           (unsigned long)elem_size);
@@ -52,22 +56,25 @@ stl_map *stl_map_new_policy(size_t elem_size, size_t value_offset, size_t key_si
         return NULL;
     }
     m->value_offset = value_offset;
+    m->value_size = value_size;
     m->key_size = key_size;
     m->elem_size = elem_size;
     return m;
 }
 
-stl_map *stl_map_new_a(size_t elem_size, size_t value_offset, size_t key_size,
-                       stl_compare_fn key_cmp, stl_dtor_fn elem_dtor, const stl_allocator *a)
+stl_map *stl_map_new_a(size_t elem_size, size_t value_offset, size_t value_size,
+                       size_t key_size, stl_compare_fn key_cmp, stl_dtor_fn elem_dtor,
+                       const stl_allocator *a)
 {
-    return stl_map_new_policy(elem_size, value_offset, key_size, key_cmp,
+    return stl_map_new_policy(elem_size, value_offset, value_size, key_size, key_cmp,
                               STL_MAP_UNIQUE, elem_dtor, a);
 }
 
-stl_map *stl_map_new(size_t elem_size, size_t value_offset, size_t key_size,
-                     stl_compare_fn key_cmp, stl_dtor_fn elem_dtor)
+stl_map *stl_map_new(size_t elem_size, size_t value_offset, size_t value_size,
+                     size_t key_size, stl_compare_fn key_cmp, stl_dtor_fn elem_dtor)
 {
-    return stl_map_new_a(elem_size, value_offset, key_size, key_cmp, elem_dtor, NULL);
+    return stl_map_new_a(elem_size, value_offset, value_size, key_size, key_cmp,
+                         elem_dtor, NULL);
 }
 
 void stl_map_free(stl_map *m)
@@ -90,7 +97,7 @@ stl_map *stl_map_copy(const stl_map *m, stl_copy_fn copy_elem)
     if (m == NULL) {
         return NULL;
     }
-    out = stl_map_new_policy(m->elem_size, m->value_offset, m->key_size,
+    out = stl_map_new_policy(m->elem_size, m->value_offset, m->value_size, m->key_size,
                              stl__rbtree_key_cmp(m->tree), stl__rbtree_policy(m->tree),
                              stl__rbtree_dtor(m->tree), stl__rbtree_allocator(m->tree));
     if (out == NULL) {
@@ -242,11 +249,9 @@ void *stl_map_put(stl_map *m, const void *key, const void *value)
     if (node != NULL) {
         pair = stl_rbtree_node_data(node);
         if (value != NULL) {
-            memcpy((stl_byte *)pair + m->value_offset, value,
-                   m->elem_size - m->value_offset);
+            memcpy((stl_byte *)pair + m->value_offset, value, m->value_size);
         } else {
-            memset((stl_byte *)pair + m->value_offset, 0,
-                   m->elem_size - m->value_offset);
+            memset((stl_byte *)pair + m->value_offset, 0, m->value_size);
         }
         return pair;
     }
@@ -260,8 +265,7 @@ void *stl_map_put(stl_map *m, const void *key, const void *value)
         memset(scratch, 0, m->elem_size);
         memcpy((stl_byte *)scratch + 0, key, m->key_size);
         if (value != NULL) {
-            memcpy((stl_byte *)scratch + m->value_offset, value,
-                   m->elem_size - m->value_offset);
+            memcpy((stl_byte *)scratch + m->value_offset, value, m->value_size);
         }
         node = stl_rbtree_insert(m->tree, scratch);
         stl_mem_free(NULL, scratch);
@@ -270,7 +274,7 @@ void *stl_map_put(stl_map *m, const void *key, const void *value)
         memset(stack, 0, m->elem_size);
         memcpy(stack + 0, key, m->key_size);
         if (value != NULL) {
-            memcpy(stack + m->value_offset, value, m->elem_size - m->value_offset);
+            memcpy(stack + m->value_offset, value, m->value_size);
         }
         node = stl_rbtree_insert(m->tree, stack);
     }

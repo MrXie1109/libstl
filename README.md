@@ -106,7 +106,7 @@ stl_define_dtor_fn(blob_dtor, struct blob, stl_free_field(e->data));
 
 /* One-line construction of associative containers */
 stl_set *s = stl_set_new_t(struct point, x);      /* ordered by .x */
-stl_map *m = stl_pair_map_new(int_pair, int);
+stl_map *m = stl_pair_map_new(int_pair, int, int);   /* K, V */
 stl_set *names = stl_strset_new();                /* set of strings */
 stl_map_put_pair(m, int_pair, 1, 100);
 
@@ -226,6 +226,24 @@ doxygen Doxyfile          # writes build/docs/html/index.html
 the build instead of silently producing incomplete output; CI runs it on every
 push.
 
+## Examples
+
+The `examples/` directory holds six runnable programs, each covering one topic
+and printing what it does as it goes:
+
+```sh
+cd examples && make run
+```
+
+| File | Covers |
+|---|---|
+| `01_containers.c` | vector, deque, list and string |
+| `02_associative.c` | set, map and hashmap |
+| `03_algorithms.c` | algorithms over arrays and arrays of structs |
+| `04_adaptors.c` | stack, queue, priority queue and bitset |
+| `05_macros.c` | the convenience macro layer |
+| `06_threads.c` | locks, thread-safe wrappers and parallel algorithms |
+
 ## Repository layout
 
 ```
@@ -245,6 +263,7 @@ src/libstl_adaptor.c     stack / queue / priority_queue
 src/libstl_string.c      string
 src/libstl_bitset.c      bitset
 src/libstl_thread.c      spinlock, rwlock, thread-safe wrappers, parallel algos
+examples/                six runnable programs, one topic each
 tests/test_libstl.c      main test suite
 tests/test_macros.c      macro-layer test suite
 Doxyfile                 API reference configuration
