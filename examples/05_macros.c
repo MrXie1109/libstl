@@ -123,7 +123,7 @@ static void iteration_demo(void)
 
 static void generated_function_demo(void)
 {
-    stl_set *by_x = stl_set_new_t(point, x);
+    stl_set *by_x = stl_set_new(sizeof(point), point_cmp_x, NULL);
     point *p;
 
     printf("\ncomparators from a field name\n");

@@ -5881,42 +5881,51 @@ STL_INLINE void *stl__new_array_impl(size_t count, size_t size)
 
 /* The built-in comparators routed through a single inline dispatcher, so that
  * the macro above never needs a cast between function pointer types. */
-STL_INLINE stl_compare_fn stl__cmp_select(int width)
+/* A field's width does not identify its comparator: a 1-byte field may be a
+ * signed char or an unsigned char, and they order 200 against 100 differently.
+ * The type is inspected directly where the compiler can do so.
+ *
+ * __typeof__ and __builtin_types_compatible_p are GCC/Clang extensions.  Where
+ * they are unavailable only the width can be determined, so fields are ordered
+ * as if signed; STL_HAVE_TYPEOF reports which behaviour is in effect. */
+#if defined(__GNUC__) || defined(__clang__)
+#  define STL_HAVE_TYPEOF 1
+#  define stl__cmp_is_unsigned(ty)                                          \
+       (__builtin_types_compatible_p(ty, unsigned char) ||                  \
+        __builtin_types_compatible_p(ty, unsigned short) ||                 \
+        __builtin_types_compatible_p(ty, unsigned int) ||                   \
+        __builtin_types_compatible_p(ty, unsigned long) ||                  \
+        __builtin_types_compatible_p(ty, unsigned long long))
+#  define stl__cmp_typeof(expr)  __typeof__(expr)
+#else
+#  define STL_HAVE_TYPEOF 0
+#  define stl__cmp_is_unsigned(ty)  0
+#  define stl__cmp_typeof(expr)     0
+#endif
+
+/* Encode a comparator choice: width, plus 16 when the type is unsigned. */
+#define stl__cmp_code(unsignedp, size)  ((int)(size) + ((unsignedp) ? 16 : 0))
+
+STL_INLINE stl_compare_fn stl__cmp_select(int code)
 {
-    switch (width) {
+    switch (code) {
+    /* signed widths */
     case 1:  return stl_cmp_int8;
     case 2:  return stl_cmp_int16;
     case 4:  return stl_cmp_int32;
     case 8:  return stl_cmp_int64;
+    /* unsigned widths, encoded as width + 16 */
+    case 17: return stl_cmp_uint8;
+    case 18: return stl_cmp_uint16;
+    case 20: return stl_cmp_uint32;
+    case 24: return stl_cmp_uint64;
     default: return stl_cmp_mem;
     }
 }
 
-/* Comparator that treats the element as a char* and orders by string content. */
-#define STL_CMP_STR  ((stl_compare_fn)stl_cmp_cstr)
-#define STL_EQ_STR   ((stl_equal_fn)stl_eq_cstr)
-#define STL_HASH_STR ((stl_hash_fn)stl_hash_cstr)
-
-#define stl_set_new_t(T, field)                                               \
-    stl_set_new(sizeof(T), stl_cmp_field(T, field), NULL)
-
-#define stl_set_new_alloc(T, field, alloc)                                  \
-    stl_set_new_a(sizeof(T), stl_cmp_field(T, field), NULL, (alloc))
-
 /* Set whose elements are themselves NUL-terminated strings. */
 #define stl_strset_new()                                                    \
-    stl_set_new(sizeof(char *), STL_CMP_STR, NULL)
-
-/* Ordered map from K to V, keyed by the first member. */
-#define STL_MAP_NEW(K, V)                                                   \
-    stl_map_new(sizeof(struct { K stl__k; V stl__v; }),                     \
-                stl_offsetof(struct { K stl__k; V stl__v; }, stl__v),       \
-                sizeof(K), stl_cmp_field(struct { K stl__k; V stl__v; }, stl__k), NULL)
-
-/* The macro above cannot be used for `put` because the anonymous struct type
- * differs at each use site.  Declare a named pair type instead and use the
- * STL_PAIR / STL_MAP_* macros below -- that is the supported pattern. */
-#define STL_PAIR(K, V)          struct { K key; V value; }
+    stl_set_new(sizeof(char *), stl_cmp_cstr, NULL)
 
 /* Define a named pair type together with its comparison and hash helpers.
  * Usage:
@@ -5930,9 +5939,13 @@ STL_INLINE stl_compare_fn stl__cmp_select(int width)
     typedef struct name { K key; V value; } name;                           \
     static int STL_CALL name##_cmp(const void *a, const void *b)            \
         stl_maybe_unused;                                                   \
-    static int STL_CALL name##_cmp(const void *a, const void *b)            \
+    static int STL_CALL name##_cmp(const void *stl__a, const void *stl__b)  \
     {                                                                       \
-        return stl__cmp_select((int)sizeof(((name *)0)->key))(a, b);        \
+        const name *a = (const name *)stl__a;                               \
+        const name *b = (const name *)stl__b;                               \
+        return stl__cmp_select(stl__cmp_code(                               \
+                   stl__cmp_is_unsigned(stl__cmp_typeof(a->key)),           \
+                   sizeof(a->key)))(&a->key, &b->key);                      \
     }                                                                       \
     static stl_compare_fn name##_key_cmp(void) stl_maybe_unused;            \
     static stl_compare_fn name##_key_cmp(void) { return name##_cmp; }
@@ -6133,21 +6146,22 @@ STL_INLINE stl_compare_fn stl__cmp_select(int width)
 
 /* Add a comparator and hash to a user struct type in one line. */
 #define stl_define_cmp_fn(name, T, field)                                   \
-    static int STL_CALL name(const void *stl__a, const void *stl__b) \
-        stl_maybe_unused;                                                   \
-    static int STL_CALL name(const void *stl__a, const void *stl__b) \
+    static int STL_CALL name(const void *stl__a, const void *stl__b)        \
         stl_maybe_unused;                                                   \
     static int STL_CALL name(const void *stl__a, const void *stl__b)        \
     {                                                                       \
+        /* The container passes a whole element, so advance to the field    \
+         * before comparing, and pick the comparator by the field's width    \
+         * *and* signedness. */                                             \
         const T *a = (const T *)stl__a;                                     \
         const T *b = (const T *)stl__b;                                     \
-        return stl__cmp_select((int)sizeof(a->field))(&a->field, &b->field); \
+        return stl__cmp_select(stl__cmp_code(                               \
+                   stl__cmp_is_unsigned(stl__cmp_typeof(a->field)),         \
+                   sizeof(a->field)))(&a->field, &b->field);                \
     }
 
 #define stl_define_eq_fn(name, T, field)                                    \
-    static int STL_CALL name(const void *stl__a, const void *stl__b) \
-        stl_maybe_unused;                                                   \
-    static int STL_CALL name(const void *stl__a, const void *stl__b) \
+    static int STL_CALL name(const void *stl__a, const void *stl__b)        \
         stl_maybe_unused;                                                   \
     static int STL_CALL name(const void *stl__a, const void *stl__b)        \
     {                                                                       \

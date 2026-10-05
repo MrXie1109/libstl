@@ -205,7 +205,7 @@ static void test_vector_macros(void)
 
 static void test_set_macros(void)
 {
-    stl_set *s = stl_set_new_t(point, x);
+    stl_set *s = stl_set_new(sizeof(point), point_cmp_x, NULL);
     point *p;
     int i;
 
@@ -240,6 +240,63 @@ static void test_set_macros(void)
     }
 
     stl_set_free(s);
+}
+
+/* A field at a non-zero offset, and an unsigned field: both used to compare
+ * the wrong bytes, either reading the wrong region of the element or ordering
+ * an unsigned value as if it were signed. */
+typedef struct {
+    int            id;
+    int            score;
+    unsigned short code;
+} graded;
+
+stl_define_cmp_fn(graded_cmp_score, graded, score);
+stl_define_cmp_fn(graded_cmp_code, graded, code);
+
+static void test_field_offset_comparators(void)
+{
+    printf("\n== comparators over a non-zero field offset ==\n");
+    {
+        stl_set *s = stl_set_new(sizeof(graded), graded_cmp_score, NULL);
+        graded *p;
+        int seen[4];
+        int n = 0;
+        int i;
+
+        CHECK(offsetof(graded, score) != 0);
+        for (i = 0; i < 4; ++i) {
+            graded g;
+            g.id = i;
+            /* score deliberately not in insertion order */
+            g.score = (int[]){ 50, 10, 90, 30 }[i];
+            g.code = 0;
+            stl_set_insert(s, &g);
+        }
+        stl_set_foreach_t(s, graded, p) {
+            if (n < 4) seen[n] = p->score;
+            ++n;
+        }
+        CHECK_EQ_INT(n, 4);
+        CHECK_EQ_INT(seen[0], 10);
+        CHECK_EQ_INT(seen[1], 30);
+        CHECK_EQ_INT(seen[2], 50);
+        CHECK_EQ_INT(seen[3], 90);
+        stl_set_free(s);
+    }
+
+    printf("== unsigned fields ==\n");
+    {
+        graded a, b;
+        memset(&a, 0, sizeof(a));
+        memset(&b, 0, sizeof(b));
+        a.code = 60000;
+        b.code = 1;
+        /* 60000 > 1 as unsigned; as signed 16-bit it would be negative. */
+        CHECK(graded_cmp_code(&a, &b) > 0);
+        CHECK(graded_cmp_code(&b, &a) < 0);
+        CHECK_EQ_INT(graded_cmp_code(&a, &a), 0);
+    }
 }
 
 static void test_map_macros(void)
@@ -515,6 +572,7 @@ int main(void)
     test_scope_helpers();
     test_vector_macros();
     test_set_macros();
+    test_field_offset_comparators();
     test_map_macros();
     test_hashmap_macros();
     test_stringset_macros();

@@ -105,7 +105,7 @@ stl_define_eq_fn(point_eq_x, struct point, x);
 stl_define_dtor_fn(blob_dtor, struct blob, stl_free_field(e->data));
 
 /* One-line construction of associative containers */
-stl_set *s = stl_set_new_t(struct point, x);      /* ordered by .x */
+stl_set *s = stl_set_new(sizeof(struct point), point_cmp_x, NULL);
 stl_map *m = stl_pair_map_new(int_pair, int, int);   /* K, V */
 stl_set *names = stl_strset_new();                /* set of strings */
 stl_map_put_pair(m, int_pair, 1, 100);
