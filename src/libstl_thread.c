@@ -94,6 +94,19 @@ int stl_hardware_concurrency(void)
     SYSTEM_INFO info;
     GetSystemInfo(&info);
     return (int)((info.dwNumberOfProcessors > 0) ? info.dwNumberOfProcessors : 1);
+#elif defined(__APPLE__)
+    /* sysconf(_SC_NPROCESSORS_ONLN) is not exposed on Darwin; the documented
+     * interface there is sysctlbyname("hw.ncpu"), with hw.logicalcpu as the
+     * count that matches hyper-threading. */
+    int ncpu = 0;
+    size_t len = sizeof(ncpu);
+    if (sysctlbyname("hw.logicalcpu", &ncpu, &len, NULL, 0) == 0 && ncpu > 0) {
+        return ncpu;
+    }
+    if (sysctlbyname("hw.ncpu", &ncpu, &len, NULL, 0) == 0 && ncpu > 0) {
+        return ncpu;
+    }
+    return 1;
 #elif STL_HAVE_PTHREAD
     long n = sysconf(_SC_NPROCESSORS_ONLN);
     return (n > 0) ? (int)n : 1;

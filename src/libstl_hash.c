@@ -660,7 +660,7 @@ stl_iterator stl_hashtable_iter_next(stl_iterator it)
     if (h == NULL || it.elem == NULL) {
         return stl_hashtable_end(h);
     }
-    node = (stl_hashtable_node *)((stl_byte *)it.elem - h->node_offset);
+    node = (stl_hashtable_node *)(void *)((stl_byte *)it.elem - h->node_offset);
     node = node->order_next;
     if (node == NULL) {
         return stl_hashtable_end(h);
@@ -686,7 +686,7 @@ stl_iterator stl_hashtable_iter_prev(stl_iterator it)
         it.index = stl__ht_order_index(h, h->order_tail);
         return it;
     }
-    node = (stl_hashtable_node *)((stl_byte *)it.elem - h->node_offset);
+    node = (stl_hashtable_node *)(void *)((stl_byte *)it.elem - h->node_offset);
     node = node->order_prev;
     if (node == NULL) {
         it.elem = NULL;

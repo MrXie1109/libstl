@@ -771,7 +771,7 @@ stl_iterator stl_list_iter_next(stl_iterator it)
     if (it.elem == NULL) {
         return stl_list_end(l);
     }
-    node = (stl_list_node *)((stl_byte *)it.elem - l->node_offset);
+    node = (stl_list_node *)(void *)((stl_byte *)it.elem - l->node_offset);
     if (node->next == &l->head) {
         return stl_list_end(l);
     }
@@ -793,7 +793,7 @@ stl_iterator stl_list_iter_prev(stl_iterator it)
         }
         return stl__list_iter(l, l->head.prev);
     }
-    node = (stl_list_node *)((stl_byte *)it.elem - l->node_offset);
+    node = (stl_list_node *)(void *)((stl_byte *)it.elem - l->node_offset);
     if (node->prev == &l->head) {
         return stl_list_rend(l);
     }

@@ -181,6 +181,11 @@ TEST_BINS := $(patsubst tests/%.c,$(BUILD)/%,$(TEST_SRCS))
 .PHONY: all
 all: $(STATIC) $(SHARED)
 
+# Order-only prerequisite shared by the targets that compile straight from
+# source instead of going through the object rules.
+$(BUILD):
+	@mkdir -p $(BUILD)
+
 # ---------------------------------------------------------------------
 # Compilation
 # ---------------------------------------------------------------------
@@ -257,7 +262,7 @@ $(BUILD)/%: tests/%.c $(STATIC) $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ $< $(STATIC) $(LDLIBS)
 
 .PHONY: asan
-asan:
+asan: | $(BUILD)
 	$(CC) $(CSTD) -g -O1 $(WARNINGS) -I. -Isrc \
 	    -fsanitize=address,undefined -fno-omit-frame-pointer \
 	    -o $(BUILD)/asan_test tests/test_libstl.c $(LIB_SRCS) $(LDLIBS)
@@ -270,7 +275,7 @@ asan:
 # The scope-exit cleanup helpers need a GCC/Clang extension and are opt-in, so
 # they get their own pass with the switch enabled.
 .PHONY: test-cleanup
-test-cleanup:
+test-cleanup: | $(BUILD)
 	$(CC) $(CSTD) $(OPT) $(WARNINGS) -DSTL_ENABLE_CLEANUP -I. -Isrc \
 	    -o $(BUILD)/cleanup_test tests/test_macros.c $(LIB_SRCS) $(LDLIBS)
 	./$(BUILD)/cleanup_test
@@ -278,7 +283,7 @@ test-cleanup:
 # Build the whole suite with pthread support compiled out, which exercises the
 # single-threaded fallbacks every non-POSIX platform relies on.
 .PHONY: test-nothreads
-test-nothreads:
+test-nothreads: | $(BUILD)
 	$(CC) $(CSTD) $(OPT) $(WARNINGS) -DSTL_DISABLE_THREADS -I. -Isrc \
 	    -o $(BUILD)/nothreads_test tests/test_libstl.c $(LIB_SRCS) -lm
 	$(BUILD)/nothreads_test

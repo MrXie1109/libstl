@@ -957,7 +957,7 @@ stl_iterator stl_rbtree_iter_next(stl_iterator it)
     if (t == NULL || it.elem == NULL) {
         return stl_rbtree_end(t);
     }
-    node = (stl_rbtree_node *)((stl_byte *)it.elem - t->node_offset);
+    node = (stl_rbtree_node *)(void *)((stl_byte *)it.elem - t->node_offset);
     node = stl_rbtree_next(node);
     if (node == NULL) {
         return stl_rbtree_end(t);
@@ -978,7 +978,7 @@ stl_iterator stl_rbtree_iter_prev(stl_iterator it)
     if (it.elem == NULL) {
         return stl_rbtree_rbegin(t);
     }
-    node = (stl_rbtree_node *)((stl_byte *)it.elem - t->node_offset);
+    node = (stl_rbtree_node *)(void *)((stl_byte *)it.elem - t->node_offset);
     node = stl_rbtree_prev(node);
     if (node == NULL) {
         return stl_rbtree_rend(t);
