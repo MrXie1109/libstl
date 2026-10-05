@@ -169,7 +169,6 @@ stl_string *stl_string_copy(const stl_string *s)
 /* ------------------------------------------------------------------ */
 
 size_t stl_string_size(const stl_string *s)     { return (s != NULL) ? s->len : 0; }
-size_t stl_string_length(const stl_string *s)   { return (s != NULL) ? s->len : 0; }
 size_t stl_string_capacity(const stl_string *s) { return (s != NULL) ? s->cap : 0; }
 int    stl_string_empty(const stl_string *s)    { return (s == NULL) || (s->len == 0); }
 char  *stl_string_cstr(stl_string *s)           { return (s != NULL) ? s->data : NULL; }
@@ -368,11 +367,6 @@ int stl_string_append_string(stl_string *s, const stl_string *other)
 int stl_string_append_char(stl_string *s, char c)
 {
     return stl_string_append_n(s, &c, 1);
-}
-
-int stl_string_push_back(stl_string *s, char c)
-{
-    return stl_string_append_char(s, c);
 }
 
 void stl_string_pop_back(stl_string *s)

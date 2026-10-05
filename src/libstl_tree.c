@@ -695,25 +695,6 @@ stl_rbtree_node *stl_rbtree_insert(stl_rbtree *t, const void *elem)
     return stl__rb_insert_internal(t, elem, 0);
 }
 
-stl_rbtree_node *stl_rbtree_insert_hint(stl_rbtree *t, stl_rbtree_node *hint, const void *elem)
-{
-    /* The hint is accepted for API compatibility; a faster path would compare
-     * against it first, but correctness never depends on it. */
-    STL_UNUSED(hint);
-    return stl__rb_insert_internal(t, elem, 0);
-}
-
-void *stl_rbtree_emplace(stl_rbtree *t)
-{
-    /* Emplacing needs a unique key we do not have yet, so the caller must fill
-     * the returned slot and then call stl_rbtree_reinsert_emplace().  We keep
-     * the simple contract: reject and report, since silently inserting a
-     * zeroed duplicate key would corrupt ordering. */
-    stl__set_error_at(STL_ERR_UNSUPPORTED, __FILE__, __LINE__, "rbtree emplace requires a key; use insert() or the set/map helpers");
-    STL_UNUSED(t);
-    return NULL;
-}
-
 /* ------------------------------------------------------------------ */
 /* Deletion                                                            */
 /* ------------------------------------------------------------------ */

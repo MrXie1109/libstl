@@ -99,62 +99,18 @@ void stl_hashset_foreach_c(const stl_hashset *s, stl_visit_fn fn, void *user)
 /*  hashmap                                                            */
 /* ================================================================== */
 
-/* The hashmap needs a value offset; like stl_map we keep it out of the public
- * object by consulting a small registry. */
-struct stl_hashmap_meta {
-    size_t value_offset;
+/* An stl_hashmap owns its table and the layout of the elements in it.  The
+ * value offset used to live in a fixed-size registry keyed by table pointer,
+ * which capped the number of live maps and was not even synchronised; keeping
+ * it in the map removes both problems. */
+struct stl_hashmap {
+    stl_hashtable *table;
+    size_t         value_offset;
 };
-
-#define STL_HASHMAP_REGISTRY_MAX 1024
-static struct {
-    const stl_hashtable *table;
-    struct stl_hashmap_meta meta;
-} stl__hashmap_registry[STL_HASHMAP_REGISTRY_MAX];
-static size_t stl__hashmap_registry_count = 0;
-
-static int stl__hashmap_register(const stl_hashtable *table, size_t value_offset)
-{
-    size_t i;
-
-    for (i = 0; i < stl__hashmap_registry_count; ++i) {
-        if (stl__hashmap_registry[i].table == NULL) {
-            stl__hashmap_registry[i].table = table;
-            stl__hashmap_registry[i].meta.value_offset = value_offset;
-            return STL_OK;
-        }
-    }
-    if (stl__hashmap_registry_count < STL_HASHMAP_REGISTRY_MAX) {
-        stl__hashmap_registry[stl__hashmap_registry_count].table = table;
-        stl__hashmap_registry[stl__hashmap_registry_count].meta.value_offset = value_offset;
-        stl__hashmap_registry_count += 1;
-        return STL_OK;
-    }
-    stl__set_error_at(STL_ERR_NOMEM, __FILE__, __LINE__, "hashmap registry exhausted (%d live maps)",
-              STL_HASHMAP_REGISTRY_MAX);
-    return STL_ERR_NOMEM;
-}
-
-static void stl__hashmap_unregister(const stl_hashtable *table)
-{
-    size_t i;
-    for (i = 0; i < stl__hashmap_registry_count; ++i) {
-        if (stl__hashmap_registry[i].table == table) {
-            stl__hashmap_registry[i].table = NULL;
-            return;
-        }
-    }
-}
 
 static size_t stl__hashmap_value_offset(const stl_hashmap *m)
 {
-    size_t i;
-    for (i = 0; i < stl__hashmap_registry_count; ++i) {
-        if (stl__hashmap_registry[i].table == m) {
-            return stl__hashmap_registry[i].meta.value_offset;
-        }
-    }
-    stl__set_error_at(STL_ERR_INVALID, __FILE__, __LINE__, "hashmap metadata missing (was this a hashmap?)");
-    return 0;
+    return (m != NULL) ? m->value_offset : 0;
 }
 
 stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_t key_size,
@@ -162,24 +118,26 @@ stl_hashmap *stl_hashmap_new_policy(size_t elem_size, size_t value_offset, size_
                                     stl_hashtable_policy policy, stl_dtor_fn elem_dtor,
                                     const stl_allocator *a)
 {
-    stl_hashtable *h;
+    stl_hashmap *m;
 
     if (elem_size == 0 || key_size == 0 || value_offset >= elem_size) {
         STL_REPORT_INVALID("hashmap needs a non-empty key and a value inside the element");
         return NULL;
     }
-    h = stl_hashtable_new(elem_size, 0, key_size, policy,
-                          (hash != NULL) ? hash : stl_hash_mem,
-                          (key_eq != NULL) ? key_eq : stl_eq_mem,
-                          elem_dtor, a);
-    if (h == NULL) {
+    m = (stl_hashmap *)stl_mem_alloc(a, 1, sizeof(*m));
+    if (m == NULL) {
         return NULL;
     }
-    if (stl__hashmap_register(h, value_offset) != STL_OK) {
-        stl_hashtable_free(h);
+    m->table = stl_hashtable_new(elem_size, 0, key_size, policy,
+                                 (hash != NULL) ? hash : stl_hash_mem,
+                                 (key_eq != NULL) ? key_eq : stl_eq_mem,
+                                 elem_dtor, a);
+    if (m->table == NULL) {
+        stl_mem_free(a, m);
         return NULL;
     }
-    return h;
+    m->value_offset = value_offset;
+    return m;
 }
 
 stl_hashmap *stl_hashmap_new_a(size_t elem_size, size_t value_offset, size_t key_size,
@@ -198,11 +156,14 @@ stl_hashmap *stl_hashmap_new(size_t elem_size, size_t value_offset, size_t key_s
 
 void stl_hashmap_free(stl_hashmap *m)
 {
+    const stl_allocator *a;
+
     if (m == NULL) {
         return;
     }
-    stl__hashmap_unregister(m);
-    stl_hashtable_free(m);
+    a = stl__hashtable_allocator(m->table);
+    stl_hashtable_free(m->table);
+    stl_mem_free(a, m);
 }
 
 stl_hashmap *stl_hashmap_copy(const stl_hashmap *m, stl_copy_fn copy_elem)
@@ -211,24 +172,24 @@ stl_hashmap *stl_hashmap_copy(const stl_hashmap *m, stl_copy_fn copy_elem)
     stl_hashmap *out;
     stl_hashtable_node *node;
 
-    out = stl_hashmap_new_policy(stl__hashtable_elem_size(m), value_offset,
-                                 stl__hashtable_key_size(m),
-                                 stl__hashtable_hash(m), stl__hashtable_eq(m),
-                                 stl__hashtable_policy(m), stl__hashtable_dtor(m),
-                                 stl__hashtable_allocator(m));
+    out = stl_hashmap_new_policy(stl__hashtable_elem_size(m->table), value_offset,
+                                 stl__hashtable_key_size(m->table),
+                                 stl__hashtable_hash(m->table), stl__hashtable_eq(m->table),
+                                 stl__hashtable_policy(m->table), stl__hashtable_dtor(m->table),
+                                 stl__hashtable_allocator(m->table));
     if (out == NULL) {
         return NULL;
     }
-    for (node = stl_hashtable_first((stl_hashtable *)m); node != NULL;
-         node = stl_hashtable_next((stl_hashtable *)m, node)) {
-        stl_hashtable_node *fresh = stl_hashtable_insert(out, stl_hashtable_node_data(node));
+    for (node = stl_hashtable_first(m->table); node != NULL;
+         node = stl_hashtable_next(m->table, node)) {
+        stl_hashtable_node *fresh = stl_hashtable_insert(out->table, stl_hashtable_node_data(node));
         if (fresh == NULL) {
             stl_hashmap_free(out);
             return NULL;
         }
         if (copy_elem != NULL &&
             !copy_elem(stl_hashtable_node_data(fresh), stl_hashtable_node_data(node),
-                       stl__hashtable_elem_size(m))) {
+                       stl__hashtable_elem_size(m->table))) {
             stl_hashmap_free(out);
             return NULL;
         }
@@ -236,8 +197,8 @@ stl_hashmap *stl_hashmap_copy(const stl_hashmap *m, stl_copy_fn copy_elem)
     return out;
 }
 
-size_t stl_hashmap_size(const stl_hashmap *m)  { return stl_hashtable_size(m); }
-int    stl_hashmap_empty(const stl_hashmap *m) { return stl_hashtable_empty(m); }
+size_t stl_hashmap_size(const stl_hashmap *m)  { return stl_hashtable_size(m->table); }
+int    stl_hashmap_empty(const stl_hashmap *m) { return stl_hashtable_empty(m->table); }
 
 void *stl_hashmap_key_of(const stl_hashmap *m, void *pair)
 {
@@ -255,13 +216,13 @@ void *stl_hashmap_value_of(const stl_hashmap *m, void *pair)
 
 void *stl_hashmap_find(stl_hashmap *m, const void *key)
 {
-    stl_hashtable_node *node = stl_hashtable_find(m, key);
+    stl_hashtable_node *node = stl_hashtable_find(m->table, key);
     return (node != NULL) ? stl_hashtable_node_data(node) : NULL;
 }
 
 const void *stl_hashmap_find_c(const stl_hashmap *m, const void *key)
 {
-    const stl_hashtable_node *node = stl_hashtable_find_c(m, key);
+    const stl_hashtable_node *node = stl_hashtable_find_c(m->table, key);
     return (node != NULL) ? stl_hashtable_node_data((stl_hashtable_node *)node) : NULL;
 }
 
@@ -278,9 +239,9 @@ const void *stl_hashmap_get_c(const stl_hashmap *m, const void *key)
                           : NULL;
 }
 
-size_t stl_hashmap_count(const stl_hashmap *m, const void *key) { return stl_hashtable_count(m, key); }
-int    stl_hashmap_contains(const stl_hashmap *m, const void *key) { return stl_hashtable_contains(m, key); }
-int    stl_hashmap_reserve(stl_hashmap *m, size_t count) { return stl_hashtable_reserve(m, count); }
+size_t stl_hashmap_count(const stl_hashmap *m, const void *key) { return stl_hashtable_count(m->table, key); }
+int    stl_hashmap_contains(const stl_hashmap *m, const void *key) { return stl_hashtable_contains(m->table, key); }
+int    stl_hashmap_reserve(stl_hashmap *m, size_t count) { return stl_hashtable_reserve(m->table, count); }
 
 void *stl_hashmap_insert(stl_hashmap *m, const void *pair)
 {
@@ -291,12 +252,12 @@ void *stl_hashmap_insert(stl_hashmap *m, const void *pair)
         STL_REPORT_INVALID("hashmap::insert(NULL)");
         return NULL;
     }
-    before = stl_hashtable_size(m);
-    node = stl_hashtable_insert(m, pair);
+    before = stl_hashtable_size(m->table);
+    node = stl_hashtable_insert(m->table, pair);
     if (node == NULL) {
         return NULL;
     }
-    if (stl__hashtable_policy(m) == STL_HASHTABLE_UNIQUE && stl_hashtable_size(m) == before) {
+    if (stl__hashtable_policy(m->table) == STL_HASHTABLE_UNIQUE && stl_hashtable_size(m->table) == before) {
         return NULL;
     }
     return stl_hashtable_node_data(node);
@@ -305,8 +266,8 @@ void *stl_hashmap_insert(stl_hashmap *m, const void *pair)
 void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
 {
     size_t value_offset = stl__hashmap_value_offset(m);
-    size_t elem_size = stl__hashtable_elem_size(m);
-    size_t key_size = stl__hashtable_key_size(m);
+    size_t elem_size = stl__hashtable_elem_size(m->table);
+    size_t key_size = stl__hashtable_key_size(m->table);
     stl_hashtable_node *node;
     void *pair;
 
@@ -314,7 +275,7 @@ void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
         STL_REPORT_INVALID("hashmap::put(NULL key)");
         return NULL;
     }
-    node = stl_hashtable_find(m, key);
+    node = stl_hashtable_find(m->table, key);
     if (node != NULL) {
         pair = stl_hashtable_node_data(node);
         if (value != NULL) {
@@ -334,7 +295,7 @@ void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
         if (value != NULL) {
             memcpy((stl_byte *)scratch + value_offset, value, elem_size - value_offset);
         }
-        node = stl_hashtable_insert(m, scratch);
+        node = stl_hashtable_insert(m->table, scratch);
         stl_mem_free(NULL, scratch);
     } else {
         char stack[4096];
@@ -343,7 +304,7 @@ void *stl_hashmap_put(stl_hashmap *m, const void *key, const void *value)
         if (value != NULL) {
             memcpy(stack + value_offset, value, elem_size - value_offset);
         }
-        node = stl_hashtable_insert(m, stack);
+        node = stl_hashtable_insert(m->table, stack);
     }
     if (node == NULL) {
         return NULL;
@@ -362,9 +323,9 @@ void *stl_hashmap_get_or_insert(stl_hashmap *m, const void *key, const void *def
     return (pair != NULL) ? stl_hashmap_value_of(m, pair) : NULL;
 }
 
-int stl_hashmap_erase(stl_hashmap *m, const void *key)  { return stl_hashtable_erase(m, key); }
-void stl_hashmap_clear(stl_hashmap *m)    { stl_hashtable_clear(m); }
-void stl_hashmap_clear_ex(stl_hashmap *m) { stl_hashtable_clear_ex(m); }
+int stl_hashmap_erase(stl_hashmap *m, const void *key)  { return stl_hashtable_erase(m->table, key); }
+void stl_hashmap_clear(stl_hashmap *m)    { stl_hashtable_clear(m->table); }
+void stl_hashmap_clear_ex(stl_hashmap *m) { stl_hashtable_clear_ex(m->table); }
 
 int stl_hashmap_foreach(stl_hashmap *m, stl_visit_fn fn, void *user)
 {
@@ -374,7 +335,7 @@ int stl_hashmap_foreach(stl_hashmap *m, stl_visit_fn fn, void *user)
     if (m == NULL || fn == NULL) {
         return 0;
     }
-    for (node = stl_hashtable_first(m); node != NULL; node = stl_hashtable_next(m, node)) {
+    for (node = stl_hashtable_first(m->table); node != NULL; node = stl_hashtable_next(m->table, node)) {
         ++visited;
         if (fn(stl_hashtable_node_data(node), user)) {
             break;
@@ -388,6 +349,6 @@ int stl_hashmap_foreach_c(const stl_hashmap *m, stl_visit_fn fn, void *user)
     return stl_hashmap_foreach((stl_hashmap *)m, fn, user);
 }
 
-stl_iterator stl_hashmap_begin(stl_hashmap *m) { return stl_hashtable_begin(m); }
-stl_iterator stl_hashmap_end(stl_hashmap *m)   { return stl_hashtable_end(m); }
+stl_iterator stl_hashmap_begin(stl_hashmap *m) { return stl_hashtable_begin(m->table); }
+stl_iterator stl_hashmap_end(stl_hashmap *m)   { return stl_hashtable_end(m->table); }
 stl_iterator stl_hashmap_iter_next(stl_iterator it) { return stl_hashtable_iter_next(it); }

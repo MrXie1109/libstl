@@ -238,7 +238,7 @@ static int sum_list_int(const stl_list *l)
 {
     int sum = 0;
     int *p;
-    STL_LIST_FOREACH((stl_list *)l, int, p) {
+    stl_list_foreach_t((stl_list *)l, int, p) {
         sum += *p;
     }
     return sum;
@@ -1291,6 +1291,45 @@ static void test_custom_allocator(void)
     stl_allocator alloc;
     stl_vector *v;
     int i;
+
+    SECTION("many live maps");
+    {
+        /* The map used to keep its value offset in a fixed-size side table,
+         * which capped the number of live maps.  Neither map kind has that
+         * limit now, so create well past the old ceiling and use the last
+         * instance to prove it is fully functional. */
+        enum { COUNT = 3000 };
+        stl_map **maps = (stl_map **)malloc(sizeof(stl_map *) * COUNT);
+        stl_hashmap **hmaps = (stl_hashmap **)malloc(sizeof(stl_hashmap *) * COUNT);
+        int i;
+        int created = 0;
+
+        CHECK(maps != NULL && hmaps != NULL);
+        for (i = 0; i < COUNT; ++i) {
+            maps[i] = make_int_map();
+            hmaps[i] = stl_hashmap_new(sizeof(int_pair), offsetof(int_pair, value),
+                                       sizeof(int), stl_hash_int, stl_eq_int, NULL);
+            if (maps[i] != NULL && hmaps[i] != NULL) {
+                ++created;
+            }
+        }
+        CHECK_EQ_INT(created, COUNT);
+
+        {
+            int key = 42;
+            int value = 99;
+            CHECK(stl_map_put(maps[COUNT - 1], &key, &value) != NULL);
+            CHECK_EQ_INT(*(int *)stl_map_get(maps[COUNT - 1], &key), 99);
+            CHECK(stl_hashmap_put(hmaps[COUNT - 1], &key, &value) != NULL);
+            CHECK_EQ_INT(*(int *)stl_hashmap_get(hmaps[COUNT - 1], &key), 99);
+        }
+        for (i = 0; i < COUNT; ++i) {
+            stl_map_free(maps[i]);
+            stl_hashmap_free(hmaps[i]);
+        }
+        free(maps);
+        free(hmaps);
+    }
 
     SECTION("custom allocator");
     alloc.malloc_fn = counting_malloc;

@@ -124,10 +124,6 @@ The macro layer requires C99 (it declares variables inside `for` initialisers).
 The library API itself works from C89 onward; compiling as C89 with
 `-DSTL_NO_CONVENIENCE_MACROS` excludes the macros entirely.
 
-The older SCREAMING_CASE spellings (`STL_NEW`, `STL_VECTOR_FOREACH`, …) are
-kept as aliases; define `STL_NO_LEGACY_MACROS` to drop them. New code should
-prefer the lower-case forms.
-
 ## Compiler extensions: what is used, and why
 
 The library targets any conforming C compiler, so non-standard constructs are
@@ -279,7 +275,6 @@ Makefile.msvc            nmake build for MSVC
 |---|---|
 | `STL_ENABLE_CLEANUP` | Enable the GCC/Clang `cleanup`-based helpers (`stl_autofree`, `stl_string_scope`) |
 | `STL_NO_CONVENIENCE_MACROS` | Exclude the macro layer (for C89 builds) |
-| `STL_NO_LEGACY_MACROS` | Do not provide the `STL_XXX` aliases |
 | `STL_DISABLE_THREADS` | Compile out every pthread-dependent path |
 | `STL_VERBOSE` | Default error handler prints to stderr |
 | `STL_DEBUG_INVARIANTS` | Enable container structural self-checks |
@@ -301,10 +296,6 @@ Sorting is introsort (O(n log n) worst case); a stable merge sort,
 
 ## Known trade-offs
 
-* A map's `value_offset` lives in a side table indexed by container pointer
-  (capacity 1024), because the public `stl_map` type *is* `stl_rbtree` and the
-  offset cannot be stored in the object without changing the ABI. More than
-  1024 live maps at once reports `STL_ERR_NOMEM`.
 * Iterators are not pointers and do not support pointer arithmetic; use
   `stl_*_iter_next/prev` or the `foreach` macros.
 * ABI stability is not guaranteed across 1.x releases.

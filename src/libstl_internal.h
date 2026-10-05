@@ -220,7 +220,6 @@ STL_PRIVATE stl_rbtree_policy    stl__rbtree_policy(const stl_rbtree *t);
 STL_PRIVATE const stl_allocator *stl__rbtree_allocator(const stl_rbtree *t);
 STL_PRIVATE stl_dtor_fn          stl__rbtree_dtor(const stl_rbtree *t);
 
-STL_PRIVATE size_t                 stl__map_value_offset(const stl_map *m);
 
 STL_PRIVATE size_t                 stl__hashtable_node_offset(const stl_hashtable *h);
 STL_PRIVATE stl_hashtable_node    *stl__hashtable_node_from_data(const stl_hashtable *h, const void *data);

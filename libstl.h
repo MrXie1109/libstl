@@ -2141,29 +2141,6 @@ STL_API size_t stl_rbtree_key_size(const stl_rbtree *t);
  */
 STL_API stl_rbtree_node *stl_rbtree_insert(stl_rbtree *t, const void *elem);
 
-/** @brief Insert with a position hint.
- *
- * @param t the tree
- * @param hint a node near the insertion point, or NULL
- * @param elem pointer to the element to copy in
- * @return the node holding the element
- *
- * @note This is the C++ @c insert(hint, value) signature.  The hint is
- *       accepted but currently ignored; the insertion is always O(log n).
- */
-STL_API stl_rbtree_node *stl_rbtree_insert_hint(stl_rbtree *t, stl_rbtree_node *hint, const void *elem);
-
-/** @brief Unsupported.
- *
- * @param t the tree
- * @return always NULL
- *
- * A tree node cannot be created without its key, because the key decides where
- * the node belongs.  Use @ref stl_rbtree_insert with a fully built element.
- * The call reports @ref STL_ERR_UNSUPPORTED through the error hook.
- */
-STL_API void *stl_rbtree_emplace(stl_rbtree *t);
-
 /** @brief Erase one element by key.
  *
  * @param t the tree
@@ -2600,8 +2577,13 @@ STL_API stl_iterator stl_set_iter_prev(stl_iterator it);
  *  @{
  */
 
-/** @brief An ordered map from keys to values. */
-typedef stl_rbtree stl_map;
+/** @brief An ordered map from keys to values.
+ *
+ * The map owns a red-black tree and remembers the element layout it was
+ * created with, so the offset of the value within an element travels with the
+ * container.  There is no limit on how many maps may exist at once.
+ */
+typedef struct stl_map stl_map;
 
 /** @brief A handle to one key/value entry of a map. */
 typedef stl_rbtree_node stl_map_node;
@@ -2686,8 +2668,7 @@ STL_API void     stl_map_free(stl_map *m);
  *  @param copy_elem optional element copy hook
  *  @return the new map, or NULL on failure
  *
- * @note At most @c STL_MAP_REGISTRY_MAX maps may exist at once, because the
- *       value offset is stored in a side table rather than in the object. */
+ */
 STL_API stl_map *stl_map_copy(const stl_map *m, stl_copy_fn copy_elem);
 
 /** @} */
@@ -3035,16 +3016,6 @@ STL_API void   stl_hashtable_set_max_load_factor(stl_hashtable *h, double lf);
  *          when the key is already present */
 STL_API stl_hashtable_node *stl_hashtable_insert(stl_hashtable *h, const void *elem);
 
-/** @brief Unsupported.
- *
- * @param h the table
- * @return always NULL
- *
- * A node cannot be created without its key, because the key selects the
- * bucket.  The call reports @ref STL_ERR_UNSUPPORTED through the error hook.
- */
-STL_API void  *stl_hashtable_emplace(stl_hashtable *h);
-
 /** @brief Erase one element by key.
  *  @param h the table
  *  @param key pointer to the key to erase
@@ -3289,8 +3260,13 @@ STL_API void   stl_hashset_foreach_c(const stl_hashset *s, stl_visit_fn fn, void
  *  @{
  */
 
-/** @brief An unordered map from keys to values. */
-typedef stl_hashtable stl_hashmap;
+/** @brief An unordered map from keys to values.
+ *
+ * Owns a hash table and remembers the element layout, so the value offset
+ * travels with the container.  There is no limit on how many maps may exist at
+ * once.
+ */
+typedef struct stl_hashmap stl_hashmap;
 
 /** @brief A handle to one key/value entry of a hash map. */
 typedef stl_hashtable_node stl_hashmap_node;
@@ -3886,11 +3862,6 @@ STL_API stl_string *stl_string_copy(const stl_string *s);
  *  @param s the string */
 STL_API size_t stl_string_size(const stl_string *s);
 
-/** @brief Return the number of bytes.
- *  @param s the string
- *  @note An alias for @ref stl_string_size. */
-STL_API size_t stl_string_length(const stl_string *s);
-
 /** @brief Return the allocated capacity in bytes, including the terminator.
  *  @param s the string */
 STL_API size_t stl_string_capacity(const stl_string *s);
@@ -4033,13 +4004,6 @@ STL_API int stl_string_append_string(stl_string *s, const stl_string *other);
  *  @param c the character
  *  @return @ref STL_OK, or an error code */
 STL_API int stl_string_append_char(stl_string *s, char c);
-
-/** @brief Append one character.
- *  @param s the string
- *  @param c the character
- *  @return @ref STL_OK, or an error code
- *  @note An alias for @ref stl_string_append_char, matching @c std::string. */
-STL_API int stl_string_push_back(stl_string *s, char c);
 
 /** @brief Remove the last character.
  *  @param s the string
@@ -4598,14 +4562,6 @@ STL_API void   stl_generate(void *base, size_t count, size_t elem_size, stl_gene
  *  @param elem_size size of one element in bytes
  *  @param value pointer to the value to copy into each slot */
 STL_API void   stl_fill(void *base, size_t count, size_t elem_size, const void *value);
-
-/** @brief Fill an array with a repeated value.
- *  @param base start of the array
- *  @param count number of elements
- *  @param elem_size size of one element in bytes
- *  @param value pointer to the value
- *  @note An alias for @ref stl_fill. */
-STL_API void   stl_fill_n(void *base, size_t count, size_t elem_size, const void *value);
 
 /** @brief Fill an array with an arithmetic sequence.
  *  @param base start of the array
@@ -5369,16 +5325,6 @@ STL_API void stl_spinlock_unlock(stl_spinlock *lock);
  *  @return non-zero when the lock was acquired */
 STL_API int  stl_spinlock_trylock(stl_spinlock *lock);
 
-/** @brief Acquire the lock.
- *  @param lock the lock
- *  @note An alias for @ref stl_spinlock_lock, for scoped-locking idioms. */
-STL_API void stl_spinlock_lock_scoped_begin(stl_spinlock *lock);
-
-/** @brief Release the lock.
- *  @param lock the lock
- *  @note An alias for @ref stl_spinlock_unlock. */
-STL_API void stl_spinlock_lock_scoped_end(stl_spinlock *lock);
-
 /** @} */
 
 /** @name Reader/writer lock
@@ -5677,20 +5623,6 @@ STL_API int         stl_is_thread_supported(void);
  *  @return 4 or 8
  *  @note Useful for diagnosing a header/library mismatch across ABIs. */
 STL_API size_t      stl_size_of_pointer(void);
-
-/** @brief Describe a container's internal state in a buffer.
- *
- * @param container the container to describe
- * @param kind which container kind it is, for example @c "vector" or @c "map"
- * @param buf output buffer
- * @param cap capacity of @p buf in bytes
- * @return the number of bytes written, excluding the terminator, or
- *         @c (size_t)-1 when @p kind is not recognised
- *
- * Intended for debugging and test failures; the exact format is not part of
- * the interface and may change between releases.
- */
-STL_API size_t stl_dump(void *container, const char *kind, char *buf, size_t cap);
 
 /** @} */ /* end of group introspection */
 
@@ -6265,88 +6197,6 @@ STL_INLINE void stl__autofree_string(stl_string **pp)
 
 #endif /* STL_HAVE_CONVENIENCE_MACROS */
 
-/* ------------------------------------------------------------------ */
-/*  deprecated spellings                                               */
-/* ------------------------------------------------------------------ */
-/* The macro layer used to be spelled in SCREAMING_CASE.  The function-style
- * lower-case names above read better next to real functions, so the old
- * spellings are kept as aliases and will be removed in a future major
- * version.  Define STL_NO_LEGACY_MACROS to leave them out. */
-#ifndef STL_NO_LEGACY_MACROS
-#  define STL_NEW                    stl_new
-#  define STL_NEW_ARRAY              stl_new_array
-#  define STL_DELETE                 stl_delete
-#  define STL_DELETE_SET             stl_delete_all
-#  define STL_FREE_ALL               stl_free_all
-#  define STL_OFFSETOF               stl_offsetof
-#  define STL_VECTOR_AT              stl_vector_at_t
-#  define STL_VECTOR_AT_CHECKED      stl_vector_at_checked_t
-#  define STL_DEQUE_AT               stl_deque_at_t
-#  define STL_LIST_AT                stl_list_at_t
-#  define STL_VECTOR_FRONT           stl_vector_front_t
-#  define STL_VECTOR_BACK            stl_vector_back_t
-#  define STL_DEQUE_FRONT            stl_deque_front_t
-#  define STL_DEQUE_BACK             stl_deque_back_t
-#  define STL_LIST_FRONT             stl_list_front_t
-#  define STL_LIST_BACK              stl_list_back_t
-#  define STL_STACK_TOP              stl_stack_top_t
-#  define STL_QUEUE_FRONT            stl_queue_front_t
-#  define STL_QUEUE_BACK             stl_queue_back_t
-#  define STL_PQ_TOP                 stl_pq_top_t
-#  define STL_VECTOR_PUSH            stl_vector_push
-#  define STL_VECTOR_PUSH_LITERAL    stl_vector_push_literal
-#  define STL_DEQUE_PUSH_BACK        stl_deque_push_back_t
-#  define STL_DEQUE_PUSH_FRONT       stl_deque_push_front_t
-#  define STL_LIST_PUSH_BACK         stl_list_push_back_t
-#  define STL_LIST_PUSH_FRONT        stl_list_push_front_t
-#  define STL_STACK_PUSH             stl_stack_push_t
-#  define STL_QUEUE_PUSH             stl_queue_push_t
-#  define STL_PQ_PUSH                stl_pq_push_t
-#  define STL_STACK_POP_TO           stl_stack_pop_t
-#  define STL_QUEUE_POP_TO           stl_queue_pop_t
-#  define STL_PQ_POP_TO              stl_pq_pop_t
-#  define STL_SET_NEW                stl_set_new_t
-#  define STL_SET_NEW_A              stl_set_new_alloc
-#  define STL_STRSET_NEW             stl_strset_new
-#  define STL_PAIR_MAP_NEW           stl_pair_map_new
-#  define STL_PAIR_HASHMAP_NEW       stl_pair_hashmap_new
-#  define STL_MAP_PUT_PAIR           stl_map_put_pair
-#  define STL_HASHMAP_PUT_PAIR       stl_hashmap_put_pair
-#  define STL_PAIR_MAKE              stl_pair_make
-#  define STL_VECTOR_FOREACH         stl_vector_foreach_t
-#  define STL_VECTOR_FOREACH_IDX     stl_vector_foreach_idx
-#  define STL_VECTOR_FOREACH_COPY    stl_vector_foreach_copy
-#  define STL_VECTOR_FOREACH_REVERSE stl_vector_foreach_rev
-#  define STL_DEQUE_FOREACH          stl_deque_foreach_t
-#  define STL_DEQUE_FOREACH_REVERSE  stl_deque_foreach_rev
-#  define STL_LIST_FOREACH           stl_list_foreach_t
-#  define STL_LIST_FOREACH_SAFE      stl_list_foreach_safe
-#  define STL_SET_FOREACH            stl_set_foreach_t
-#  define STL_SET_FOREACH_REVERSE    stl_set_foreach_rev
-#  define STL_MAP_FOREACH            stl_map_foreach_t
-#  define STL_MAP_FOREACH_KV         stl_map_foreach_kv
-#  define STL_MAP_FOREACH_REVERSE    stl_map_foreach_rev
-#  define STL_HASHSET_FOREACH        stl_hashset_foreach_t
-#  define STL_HASHMAP_FOREACH        stl_hashmap_foreach_t
-#  define STL_STRING_SCOPE           stl_string_scope
-#  define STL_STRING_SCOPE_FMT       stl_string_scope_fmt
-#  define STL_CSTR                   stl_cstr
-#  define STL_STRLEN                 stl_strlen
-#  define STL_STR_EQ                 stl_str_eq
-#  define STL_STR_APPEND_FMT         stl_str_append_fmt
-#  define STL_MIN_OF                 stl_min_of
-#  define STL_MAX_OF                 stl_max_of
-#  define STL_ARRAY_LEN              stl_array_len
-#  define STL_SWAP                   stl_swap_t
-#  define STL_SWAP_GENERIC           stl_swap_generic
-#  define STL_CLAMP                  stl_clamp
-#  define STL_ZERO                   stl_zero
-#  define STL_DEFINE_PAIR            stl_define_pair
-#  define STL_DEFINE_CMP_FN          stl_define_cmp_fn
-#  define STL_DEFINE_EQ_FN           stl_define_eq_fn
-#  define STL_DEFINE_DTOR_FN         stl_define_dtor_fn
-#  define STL_MAYBE_UNUSED           stl_maybe_unused
-#endif /* STL_NO_LEGACY_MACROS */
 
 /* End of public interface. */
 

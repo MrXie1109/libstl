@@ -425,15 +425,6 @@ stl_hashtable_node *stl_hashtable_insert(stl_hashtable *h, const void *elem)
     return node;
 }
 
-void *stl_hashtable_emplace(stl_hashtable *h)
-{
-    /* Without a key we cannot compute a bucket, so emplace is unsupported for
-     * the generic table; use insert() with a fully built element. */
-    stl__set_error_at(STL_ERR_UNSUPPORTED, __FILE__, __LINE__, "hashtable emplace requires a key; use insert()");
-    STL_UNUSED(h);
-    return NULL;
-}
-
 int stl_hashtable_erase_node(stl_hashtable *h, stl_hashtable_node *node)
 {
     if (h == NULL || node == NULL) {

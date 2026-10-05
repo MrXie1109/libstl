@@ -217,8 +217,6 @@ void stl_spinlock_unlock(stl_spinlock *lock)
 #endif
 }
 
-void stl_spinlock_lock_scoped_begin(stl_spinlock *lock) { stl_spinlock_lock(lock); }
-void stl_spinlock_lock_scoped_end(stl_spinlock *lock)   { stl_spinlock_unlock(lock); }
 
 /* ------------------------------------------------------------------ */
 /* Reader/writer lock                                                  */

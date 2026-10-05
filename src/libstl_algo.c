@@ -598,11 +598,6 @@ void stl_fill(void *base, size_t count, size_t elem_size, const void *value)
     }
 }
 
-void stl_fill_n(void *base, size_t count, size_t elem_size, const void *value)
-{
-    stl_fill(base, count, elem_size, value);
-}
-
 void stl_iota(void *base, size_t count, size_t elem_size, const void *start, const void *step)
 {
     stl_byte *arr = (stl_byte *)base;
