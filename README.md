@@ -176,20 +176,44 @@ and on version tags:
 | `native` | Builds and tests natively on Linux x86-64, Linux arm64, macOS arm64 and Windows x86-64 (MSVC), then uploads each platform's libraries as an artifact. |
 | `release` | On a `v*` tag, archives each native build and attaches it to the GitHub release. |
 
-Pushing a tag such as `v1.0.1` therefore produces one archive per platform,
-each containing the header and that platform's native libraries:
+Pushing a tag such as `v1.0.1` attaches the libraries as **loose files**, one
+set per target, with the target in the name:
 
-| Archive | Contents |
-|---|---|
-| `libstl-v1.0.1-linux-x86_64.tar.gz` | `libstl.h`, `libstl.a`, `libstl.so`, `libstl.so.1`, `libstl.so.1.0.0` |
-| `libstl-v1.0.1-linux-aarch64.tar.gz` | same as above, built for arm64 |
-| `libstl-v1.0.1-macos-arm64.tar.gz` | `libstl.h`, `libstl.a`, `libstl.dylib`, `libstl.1.dylib`, `libstl.1.0.0.dylib` |
-| `libstl-v1.0.1-windows-x86_64.tar.gz` | `libstl.h`, `libstl.lib` (static), `libstl.dll` |
+```
+libstl.h                          shared by every platform, uploaded once
+libstl-linux-x86_64.a             libstl-linux-x86_64.so
+libstl-linux-x86_64.so.1          libstl-linux-x86_64.so.1.0.0
 
-GitHub does not preserve symlinks in artifacts, so the versioned, major-only
-and unversioned names are shipped as three real files. Link against the
-unversioned name; the soname/install_name embedded in the binary points at the
-versioned one.
+libstl-linux-aarch64.a            libstl-linux-aarch64.so
+libstl-linux-aarch64.so.1         libstl-linux-aarch64.so.1.0.0
+
+libstl-macos-arm64.a              libstl-macos-arm64.dylib
+libstl-macos-arm64.dylib.1        libstl-macos-arm64.dylib.1.0.0
+
+libstl-windows-x86_64.lib         libstl-windows-x86_64.dll
+
+SHA256SUMS
+```
+
+The target has to appear in the filename because GitHub requires unique asset
+names and every platform produces a file called `libstl.a`. The version suffix
+is kept so that renaming back to the canonical name is mechanical. The
+`install-release` target does exactly that:
+
+```sh
+make install-release SRC=~/Downloads TARGET=linux-x86_64 PREFIX=/usr/local
+```
+
+which installs `libstl.h` and `libstl.a` / `libstl.so` / `libstl.so.1` /
+`libstl.so.1.0.0` (or the `.dylib` / `.lib` + `.dll` equivalents) under their
+real names. If you prefer to place them by hand, the mapping is trivial:
+
+```sh
+# Linux / macOS
+cp libstl-linux-x86_64.a  /usr/local/lib/libstl.a
+cp libstl-linux-x86_64.so* /usr/local/lib/     # strip the -linux-x86_64 part
+cp libstl.h                /usr/local/include/
+```
 
 ## Repository layout
 

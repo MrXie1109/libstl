@@ -328,6 +328,43 @@ install: all
 	    ln -sf $(notdir $(SHARED_V)) libstl.$(SHARED_EXT)
 	@echo "installed libstl $(VERSION) into $(DESTDIR)$(PREFIX)"
 
+# The published release assets are loose files with the target in the name
+# (libstl-linux-x86_64.a and friends), because GitHub requires unique asset
+# names and every platform produces a file called libstl.a.  This target
+# restores the canonical names, which is what the linker and the dynamic
+# loader need:
+#
+#     make install-release SRC=~/Downloads TARGET=linux-x86_64 PREFIX=/usr/local
+#
+.PHONY: install-release
+install-release:
+	@if [ -z "$(SRC)" ] || [ -z "$(TARGET)" ]; then \
+	    echo "usage: make install-release SRC=<dir> TARGET=<target> [PREFIX=...]"; \
+	    echo "targets: linux-x86_64 linux-aarch64 macos-arm64 windows-x86_64"; \
+	    exit 2; \
+	fi
+	install -d $(DESTDIR)$(PREFIX)/include $(DESTDIR)$(PREFIX)/lib
+	install -m 644 $(SRC)/libstl.h $(DESTDIR)$(PREFIX)/include/libstl.h
+	@set -e; \
+	for src in $(SRC)/libstl-$(TARGET).a $(SRC)/libstl-$(TARGET).lib; do \
+	    [ -f "$$src" ] && install -m 644 "$$src" $(DESTDIR)$(PREFIX)/lib/libstl$${src##*libstl-$(TARGET)} && \
+	        echo "  installed $${src##*/} -> libstl$${src##*libstl-$(TARGET)}"; \
+	done; \
+	for ext in so dylib dll; do \
+	    for src in $(SRC)/libstl-$(TARGET).$$ext*; do \
+	        [ -f "$$src" ] || continue; \
+	        suffix=$${src##*libstl-$(TARGET).$$ext}; \
+	        case "$$ext" in \
+	          so)    name="libstl.so$$suffix" ;; \
+	          dylib) name="libstl$$suffix.dylib" ;; \
+	          dll)   name="libstl.dll" ;; \
+	        esac; \
+	        install -m 755 "$$src" "$(DESTDIR)$(PREFIX)/lib/$$name"; \
+	        echo "  installed $${src##*/} -> $$name"; \
+	    done; \
+	done
+	@echo "installed libstl $(VERSION) for $(TARGET) into $(DESTDIR)$(PREFIX)"
+
 .PHONY: uninstall
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/include/libstl.h
