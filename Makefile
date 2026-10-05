@@ -161,14 +161,24 @@ SHARED   := $(BUILD)/libstl.$(SHARED_EXT)
 # Versioned shared-library name.  Windows DLLs are not versioned on disk (the
 # version lives in the PE header / import library), and macOS conventionally
 # keeps only the major version.
+# macOS puts the version before the extension (libstl.1.0.0.dylib); ELF puts
+# it after (libstl.so.1.0.0).  Windows DLLs carry the version in the PE header
+# and are not versioned on disk.
 ifeq ($(TOOLCHAIN),msvc)
-  SHARED_V := $(SHARED)
-  IMPORT_LIB := $(BUILD)/libstl.lib
+  SHARED_V   := $(SHARED)
+  SHARED_MAJ := $(SHARED)
+  IMPORT_LIB := $(BUILD)/libstl_dll.lib
 else ifeq ($(PLATFORM),windows)
-  SHARED_V := $(SHARED)
+  SHARED_V   := $(SHARED)
+  SHARED_MAJ := $(SHARED)
   IMPORT_LIB := $(BUILD)/liblibstl.dll.a
+else ifeq ($(PLATFORM),darwin)
+  SHARED_V   := $(BUILD)/libstl.$(VERSION).dylib
+  SHARED_MAJ := $(BUILD)/libstl.$(VERSION_MAJOR).dylib
+  IMPORT_LIB :=
 else
-  SHARED_V := $(SHARED).$(VERSION)
+  SHARED_V   := $(SHARED).$(VERSION)
+  SHARED_MAJ := $(SHARED).$(VERSION_MAJOR)
   IMPORT_LIB :=
 endif
 
@@ -314,8 +324,8 @@ install: all
 	install -m 644 $(STATIC)  $(DESTDIR)$(PREFIX)/lib/
 	install -m 755 $(SHARED_V) $(DESTDIR)$(PREFIX)/lib/
 	cd $(DESTDIR)$(PREFIX)/lib && \
-	    ln -sf libstl.so.$(VERSION) libstl.so.$(VERSION_MAJOR) && \
-	    ln -sf libstl.so.$(VERSION) libstl.so
+	    ln -sf $(notdir $(SHARED_V)) $(notdir $(SHARED_MAJ)) && \
+	    ln -sf $(notdir $(SHARED_V)) libstl.$(SHARED_EXT)
 	@echo "installed libstl $(VERSION) into $(DESTDIR)$(PREFIX)"
 
 .PHONY: uninstall

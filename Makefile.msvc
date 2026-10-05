@@ -103,46 +103,46 @@ $(SHARED_LIB): $(SHARED_OBJS)
 
 $(BUILD)\shared_adaptor.obj: $(SRCDIR)\libstl_adaptor.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_adaptor.c
 $(BUILD)\shared_algo.obj: $(SRCDIR)\libstl_algo.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_algo.c
 $(BUILD)\shared_bitset.obj: $(SRCDIR)\libstl_bitset.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_bitset.c
 $(BUILD)\shared_core.obj: $(SRCDIR)\libstl_core.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_core.c
 $(BUILD)\shared_deque.obj: $(SRCDIR)\libstl_deque.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_deque.c
 $(BUILD)\shared_hash.obj: $(SRCDIR)\libstl_hash.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_hash.c
 $(BUILD)\shared_hashset.obj: $(SRCDIR)\libstl_hashset.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_hashset.c
 $(BUILD)\shared_list.obj: $(SRCDIR)\libstl_list.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_list.c
 $(BUILD)\shared_map.obj: $(SRCDIR)\libstl_map.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_map.c
 $(BUILD)\shared_set.obj: $(SRCDIR)\libstl_set.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_set.c
 $(BUILD)\shared_string.obj: $(SRCDIR)\libstl_string.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_string.c
 $(BUILD)\shared_thread.obj: $(SRCDIR)\libstl_thread.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_thread.c
 $(BUILD)\shared_tree.obj: $(SRCDIR)\libstl_tree.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_tree.c
 $(BUILD)\shared_vector.obj: $(SRCDIR)\libstl_vector.c
 	@if not exist $(BUILD) mkdir $(BUILD)
-	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
+	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $(SRCDIR)\libstl_vector.c
 
 # ---------------------------------------------------------------------
 # Tests (linked against the static library)
