@@ -1,0 +1,18 @@
+# Build products
+libstl.a
+libstl.so
+libstl.so.*
+*.o
+*.lo
+
+# Test binaries produced by the Makefile
+tests/test_libstl
+tests/test_macros
+build_asan_test
+build_asan_macros
+build_cleanup_test
+
+# Editor and OS noise
+*.swp
+*~
+.DS_Store
