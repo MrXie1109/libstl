@@ -12,11 +12,15 @@ produces both `libstl.a` and `libstl.so`.
 ## Quick start
 
 ```sh
-make            # build libstl.a and libstl.so
+make            # build build/libstl.a and build/libstl.so
 make test       # build and run the self tests (9000+ assertions)
 make asan       # run the tests under AddressSanitizer + UBSan
 make install    # install into /usr/local; override with PREFIX=...
 ```
+
+All generated files go to `build/` (override with `BUILD=<dir>`), so the source
+tree stays clean. Run `make clean` to remove the directory. Untracked generated
+files are covered by `.gitignore`.
 
 Using it from your own program:
 
@@ -235,4 +239,4 @@ Sorting is introsort (O(n log n) worst case); a stable merge sort,
 
 ## License
 
-Public domain / MIT-0. Do whatever you want with it.
+MIT. See [LICENSE](LICENSE).

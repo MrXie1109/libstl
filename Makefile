@@ -61,16 +61,23 @@ endif
 SRCDIR   := src
 INCDIR   := .
 
+# Every generated file lives under $(BUILD); the source tree stays clean.
+BUILD    ?= build
+
 LIB_SRCS := $(wildcard $(SRCDIR)/*.c)
-LIB_OBJS := $(LIB_SRCS:.c=.o)
-LIB_PICS := $(LIB_SRCS:.c=.lo)
+LIB_OBJS := $(patsubst $(SRCDIR)/%.c,$(BUILD)/%.o,$(LIB_SRCS))
+LIB_PICS := $(patsubst $(SRCDIR)/%.c,$(BUILD)/%.lo,$(LIB_SRCS))
 
 HEADERS  := libstl.h
-STATIC   := libstl.a
-SHARED   := libstl.so
+STATIC   := $(BUILD)/libstl.a
+SHARED   := $(BUILD)/libstl.so
+
+# Shared-library artefacts (versioned file plus the two symlinks).
+SHARED_V := $(SHARED).$(VERSION)
+SHARED_SO := $(SHARED).$(VERSION_MAJOR)
 
 TEST_SRCS := tests/test_libstl.c tests/test_macros.c
-TEST_BINS := $(TEST_SRCS:.c=)
+TEST_BINS := $(patsubst tests/%.c,$(BUILD)/%,$(TEST_SRCS))
 
 # ---------------------------------------------------------------------
 # Default target
@@ -81,16 +88,19 @@ all: $(STATIC) $(SHARED)
 # ---------------------------------------------------------------------
 # Compilation
 # ---------------------------------------------------------------------
-$(SRCDIR)/%.o: $(SRCDIR)/%.c $(HEADERS) $(SRCDIR)/libstl_internal.h
+$(BUILD)/%.o: $(SRCDIR)/%.c $(HEADERS) $(SRCDIR)/libstl_internal.h
+	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(SRCDIR)/%.lo: $(SRCDIR)/%.c $(HEADERS) $(SRCDIR)/libstl_internal.h
+$(BUILD)/%.lo: $(SRCDIR)/%.c $(HEADERS) $(SRCDIR)/libstl_internal.h
+	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -DSTL_BUILD_SHARED -c $< -o $@
 
 # ---------------------------------------------------------------------
 # Libraries
 # ---------------------------------------------------------------------
 $(STATIC): $(LIB_OBJS)
+	@mkdir -p $(BUILD)
 	$(AR) rcs $@ $^
 	$(RANLIB) $@
 	@echo "  [static] $@"
@@ -98,11 +108,12 @@ $(STATIC): $(LIB_OBJS)
 # The shared library is built with a versioned soname and a matching symlink,
 # so both `-lstl` at link time and `libstl.so.1` at run time resolve.
 $(SHARED): $(LIB_PICS)
-	$(CC) -shared -o $(SHARED).$(VERSION) $^ $(LDLIBS) \
-	    -Wl,-soname,$(SHARED).$(VERSION_MAJOR)
-	ln -sf $(SHARED).$(VERSION) $(SHARED).$(VERSION_MAJOR)
-	ln -sf $(SHARED).$(VERSION) $(SHARED)
-	@echo "  [shared] $(SHARED).$(VERSION)"
+	@mkdir -p $(BUILD)
+	$(CC) -shared -o $(SHARED_V) $^ $(LDLIBS) \
+	    -Wl,-soname,libstl.so.$(VERSION_MAJOR)
+	cd $(BUILD) && ln -sf libstl.so.$(VERSION) libstl.so.$(VERSION_MAJOR) \
+	              && ln -sf libstl.so.$(VERSION) libstl.so
+	@echo "  [shared] $(SHARED_V)"
 
 # ---------------------------------------------------------------------
 # Tests
@@ -111,38 +122,39 @@ $(SHARED): $(LIB_PICS)
 test check: $(TEST_BINS)
 	@for t in $(TEST_BINS); do \
 	    echo "=== running $$t ==="; \
-	    ./$$t || exit 1; \
+	    $$t || exit 1; \
 	done
 	@echo
 	@echo "All test binaries passed."
 
-tests/%: tests/%.c $(STATIC) $(HEADERS)
+$(BUILD)/%: tests/%.c $(STATIC) $(HEADERS)
+	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $< $(STATIC) $(LDLIBS)
 
 .PHONY: asan
 asan:
 	$(CC) $(CSTD) -g -O1 $(WARNINGS) -I. -Isrc \
 	    -fsanitize=address,undefined -fno-omit-frame-pointer \
-	    -o build_asan_test tests/test_libstl.c $(LIB_SRCS) $(LDLIBS)
+	    -o $(BUILD)/asan_test tests/test_libstl.c $(LIB_SRCS) $(LDLIBS)
 	$(CC) $(CSTD) -g -O1 $(WARNINGS) -I. -Isrc \
 	    -fsanitize=address,undefined -fno-omit-frame-pointer \
-	    -o build_asan_macros tests/test_macros.c $(LIB_SRCS) $(LDLIBS)
-	./build_asan_test
-	./build_asan_macros
+	    -o $(BUILD)/asan_macros tests/test_macros.c $(LIB_SRCS) $(LDLIBS)
+	./$(BUILD)/asan_test
+	./$(BUILD)/asan_macros
 
 # The scope-exit cleanup helpers need a GCC/Clang extension and are opt-in, so
 # they get their own pass with the switch enabled.
 .PHONY: test-cleanup
 test-cleanup:
 	$(CC) $(CSTD) $(OPT) $(WARNINGS) -DSTL_ENABLE_CLEANUP -I. -Isrc \
-	    -o build_cleanup_test tests/test_macros.c $(LIB_SRCS) $(LDLIBS)
-	./build_cleanup_test
+	    -o $(BUILD)/cleanup_test tests/test_macros.c $(LIB_SRCS) $(LDLIBS)
+	./$(BUILD)/cleanup_test
 
 .PHONY: valgrind
 valgrind: $(TEST_BINS)
 	@for t in $(TEST_BINS); do \
 	    echo "=== valgrind $$t ==="; \
-	    valgrind --error-exitcode=1 --leak-check=full -q ./$$t || exit 1; \
+	    valgrind --error-exitcode=1 --leak-check=full -q $$t || exit 1; \
 	done
 
 # ---------------------------------------------------------------------
@@ -153,29 +165,28 @@ install: all
 	install -d $(DESTDIR)$(PREFIX)/include $(DESTDIR)$(PREFIX)/lib
 	install -m 644 $(HEADERS) $(DESTDIR)$(PREFIX)/include/
 	install -m 644 $(STATIC)  $(DESTDIR)$(PREFIX)/lib/
-	install -m 755 $(SHARED).$(VERSION) $(DESTDIR)$(PREFIX)/lib/
-	ln -sf $(SHARED).$(VERSION) $(DESTDIR)$(PREFIX)/lib/$(SHARED).$(VERSION_MAJOR)
-	ln -sf $(SHARED).$(VERSION) $(DESTDIR)$(PREFIX)/lib/$(SHARED)
+	install -m 755 $(SHARED_V) $(DESTDIR)$(PREFIX)/lib/
+	cd $(DESTDIR)$(PREFIX)/lib && \
+	    ln -sf libstl.so.$(VERSION) libstl.so.$(VERSION_MAJOR) && \
+	    ln -sf libstl.so.$(VERSION) libstl.so
 	@echo "installed libstl $(VERSION) into $(DESTDIR)$(PREFIX)"
 
 .PHONY: uninstall
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/include/libstl.h
-	rm -f $(DESTDIR)$(PREFIX)/lib/$(STATIC) $(DESTDIR)$(PREFIX)/lib/$(SHARED)
+	rm -f $(DESTDIR)$(PREFIX)/lib/libstl.a
+	rm -f $(DESTDIR)$(PREFIX)/lib/libstl.so
+	rm -f $(DESTDIR)$(PREFIX)/lib/libstl.so.$(VERSION)
+	rm -f $(DESTDIR)$(PREFIX)/lib/libstl.so.$(VERSION_MAJOR)
 
 # ---------------------------------------------------------------------
 # Housekeeping
 # ---------------------------------------------------------------------
 .PHONY: clean distclean
 clean:
-	rm -f $(LIB_OBJS) $(LIB_PICS) $(STATIC) $(SHARED) $(SHARED).$(VERSION) \
-	      $(SHARED).$(VERSION_MAJOR) $(TEST_BINS)
-	rm -f build_asan_test build_asan_macros build_cleanup_test
-	rm -f build_test build_macros_test build_test_asan build_test_macros_asan
-	rm -f dbg dbg2 dbg3 dbg3a dbg4 dbg5 dbg6 dbg.c dbg2.c dbg3.c dbg4.c dbg5.c dbg6.c
+	rm -rf $(BUILD)
 
 distclean: clean
-	rm -rf build
 
 .PHONY: help
 help:

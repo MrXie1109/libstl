@@ -45,7 +45,7 @@
  *  by STL_HAVE_PTHREAD (and by STL_HAVE_PTHREAD_RWLOCK / STL_HAVE_PTHREAD_SPIN
  *  for the finer-grained cases).
  *
- * License: public domain / MIT-0.  Do whatever you want with it.
+ * License: MIT.  See the LICENSE file in the project root.
  */
 
 #ifndef LIBSTL_H_INCLUDED
