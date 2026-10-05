@@ -146,42 +146,36 @@ jobs:
       # with -L (dereference) and the versioned symlinks are recreated when the
       # archive is unpacked by the consumer.  The versioned real file is what
       # carries the data; the unversioned name is a copy of it.
+      # Each platform stages only the files that are unique to it.  The header
+      # is the same source file everywhere, so it is not collected here: every
+      # job producing a file called libstl.h is what made the release step
+      # depend on which directory it happened to read last.
       - name: Collect artefacts (POSIX)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p stage
-          cp libstl.h stage/
+          # Rename to the final asset name here, so the release job only has to
+          # concatenate.  GitHub requires unique asset names within a release,
+          # which is why the target is part of the name.
           case "${{ runner.os }}" in
             Linux)
-              cp build/libstl.a stage/
-              cp -L build/libstl.so.1.0.0 stage/
-              cp -L build/libstl.so.1       stage/
-              cp -L build/libstl.so         stage/
+              cp build/libstl.a                 "stage/libstl-${{ matrix.artifact }}.a"
+              cp -L build/libstl.so.1.0.0       "stage/libstl-${{ matrix.artifact }}.so.1.0.0"
+              cp -L build/libstl.so.1           "stage/libstl-${{ matrix.artifact }}.so.1"
+              cp -L build/libstl.so             "stage/libstl-${{ matrix.artifact }}.so"
               ;;
             macOS)
-              cp build/libstl.a stage/
-              cp -L build/libstl.1.0.0.dylib stage/
-              cp -L build/libstl.1.dylib     stage/
-              cp -L build/libstl.dylib       stage/
+              cp build/libstl.a                 "stage/libstl-${{ matrix.artifact }}.a"
+              cp -L build/libstl.1.0.0.dylib    "stage/libstl-${{ matrix.artifact }}.dylib.1.0.0"
+              cp -L build/libstl.1.dylib        "stage/libstl-${{ matrix.artifact }}.dylib.1"
+              cp -L build/libstl.dylib          "stage/libstl-${{ matrix.artifact }}.dylib"
               ;;
           esac
-          # Fail loudly if a library silently went missing, rather than
-          # publishing an archive with only the header in it.
-          for required in libstl.h; do
-            test -f "stage/$required" || { echo "missing $required"; exit 1; }
+          for f in stage/*; do
+            [ -f "$f" ] || { echo "no artefacts were staged"; exit 1; }
           done
-          case "${{ runner.os }}" in
-            Linux)
-              for f in libstl.a libstl.so libstl.so.1 libstl.so.1.0.0; do
-                test -f "stage/$f" || { echo "missing $f"; exit 1; }
-              done ;;
-            macOS)
-              for f in libstl.a libstl.dylib; do
-                test -f "stage/$f" || { echo "missing $f"; exit 1; }
-              done ;;
-          esac
           ls -l stage/
 
       # ---------------- Windows (MSVC) ------------------------------------
@@ -204,12 +198,8 @@ jobs:
         shell: cmd
         run: |
           mkdir stage
-          copy libstl.h stage\
-          copy build\libstl.lib stage\
-          copy build\libstl.dll stage\
-          if not exist stage\libstl.dll exit /b 1
-          if not exist stage\libstl.lib exit /b 1
-          if not exist stage\libstl.h   exit /b 1
+          copy build\libstl.lib "stage\libstl-${{ matrix.artifact }}.lib"
+          copy build\libstl.dll "stage\libstl-${{ matrix.artifact }}.dll"
           dir stage
 
       - name: Upload ${{ matrix.artifact }}
@@ -220,17 +210,16 @@ jobs:
           if-no-files-found: error
 
   # ------------------------------------------------------------------
-  # Publish.  On a version tag every native build is attached as loose files.
+  # Publish.  On a version tag every native build is attached as loose files,
+  # already named for release by the job that produced it:
   #
-  # Release asset names must be unique within a release, and all four
-  # platforms produce a file called libstl.h / libstl.a, so each name is
-  # suffixed with the target. The library's own filename is preserved inside
-  # the archive-less layout by putting the platform in the stem:
+  #   libstl.h                      the same source file on every platform
+  #   libstl-linux-x86_64.a         link with this
+  #   libstl-linux-x86_64.so        (soname inside still points at libstl.so.1)
+  #   ...
   #
-  #   libstl-linux-x86_64.a       link with this
-  #   libstl-linux-x86_64.so      (soname inside still points at libstl.so.1)
-  #   libstl.h                    shared by every platform, so it is uploaded
-  #                               once, from a single target
+  # Every artifact holds a disjoint set of names, so they can be merged
+  # directly; no renaming or per-directory bookkeeping is needed here.
   # ------------------------------------------------------------------
   release:
     name: publish release assets
@@ -243,58 +232,13 @@ jobs:
       - name: Download every native build
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: dist
+          merge-multiple: true
 
-      - name: Stage loose files
+      - name: Add the header
         run: |
           set -euo pipefail
-          mkdir -p dist
-
-          # Restore the canonical library name for a given target, keeping the
-          # version suffix that the platform's loader expects:
-          #   ELF     libstl.so.1.0.0        -> libstl-<target>.so.1.0.0
-          #   Mach-O  libstl.1.0.0.dylib     -> libstl-<target>.dylib.1.0.0
-          #   PE      libstl.dll             -> libstl-<target>.dll
-          # The front of the name carries the target so asset names stay unique.
-          stage_one() {
-            local target="$1" file="$2" base name
-            base=$(basename "$file")
-            case "$base" in
-              libstl.h)
-                # The header is the same source file on every platform, so it
-                # is published once rather than four times under mangled names.
-                # Taking it from a single, named build keeps the result
-                # independent of the order the artifact directories happen to
-                # be walked in.
-                if [ "$target" = "linux-x86_64" ]; then
-                  cp "$file" dist/libstl.h
-                fi
-                return ;;
-              libstl.a)     name="libstl-$target.a" ;;
-              libstl.lib)   name="libstl-$target.lib" ;;
-              libstl.dll)   name="libstl-$target.dll" ;;
-              libstl.so)    name="libstl-$target.so" ;;
-              libstl.so.*)  name="libstl-$target.so${base#libstl.so}" ;;
-              libstl.dylib) name="libstl-$target.dylib" ;;
-              libstl.*.dylib)
-                # libstl.1.dylib / libstl.1.0.0.dylib -> dylib.1 / dylib.1.0.0
-                name="libstl-$target.dylib.${base#libstl.}"
-                name="${name%.dylib}" ;;
-              *)            name="$target-$base" ;;
-            esac
-            cp "$file" "dist/$name"
-          }
-
-          for dir in artifacts/*/; do
-            target=$(basename "$dir")
-            echo "staging $target"
-            for file in "$dir"*; do
-              [ -f "$file" ] || continue
-              stage_one "$target" "$file"
-            done
-          done
-
-          echo "--- staged assets ---"
+          cp libstl.h dist/libstl.h
           ls -l dist/
           ( cd dist && sha256sum ./* > SHA256SUMS && cat SHA256SUMS )
 
