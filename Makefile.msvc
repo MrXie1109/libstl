@@ -65,8 +65,12 @@ SHARED_OBJS = $(BUILD)\shared_adaptor.obj $(BUILD)\shared_algo.obj     \
               $(BUILD)\shared_string.obj  $(BUILD)\shared_thread.obj   \
               $(BUILD)\shared_tree.obj    $(BUILD)\shared_vector.obj
 
+# The static library is named libstl.lib.  `link /DLL` would normally write its
+# import library to the same name and clobber it, so the import library is
+# redirected to libstl_dll.lib; the shipped pair is libstl.lib + libstl.dll.
 STATIC_LIB = $(BUILD)\libstl.lib
 SHARED_LIB = $(BUILD)\libstl.dll
+IMPORT_LIB = $(BUILD)\libstl_dll.lib
 
 all: $(STATIC_LIB) $(SHARED_LIB)
 
@@ -94,37 +98,50 @@ $(STATIC_LIB): $(LIB_OBJS)
 # //DSTL_BUILD_SHARED.  nmake cannot express "same sources, different flags"
 # with an inference rule, so each one is built explicitly.
 $(SHARED_LIB): $(SHARED_OBJS)
-	$(LINK) /DLL /OUT:$@ /IMPLIB:$(BUILD)\libstl.lib $(SHARED_OBJS)
+	$(LINK) /DLL /OUT:$@ /IMPLIB:$(IMPORT_LIB) $(SHARED_OBJS)
 	@echo   [shared] $@
 
 $(BUILD)\shared_adaptor.obj: $(SRCDIR)\libstl_adaptor.c
 	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_algo.obj: $(SRCDIR)\libstl_algo.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_bitset.obj: $(SRCDIR)\libstl_bitset.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_core.obj: $(SRCDIR)\libstl_core.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_deque.obj: $(SRCDIR)\libstl_deque.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_hash.obj: $(SRCDIR)\libstl_hash.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_hashset.obj: $(SRCDIR)\libstl_hashset.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_list.obj: $(SRCDIR)\libstl_list.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_map.obj: $(SRCDIR)\libstl_map.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_set.obj: $(SRCDIR)\libstl_set.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_string.obj: $(SRCDIR)\libstl_string.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_thread.obj: $(SRCDIR)\libstl_thread.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_tree.obj: $(SRCDIR)\libstl_tree.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 $(BUILD)\shared_vector.obj: $(SRCDIR)\libstl_vector.c
+	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CC) $(SHARED_CFLAGS) /c /Fo$@ $<
 
 # ---------------------------------------------------------------------

@@ -119,6 +119,10 @@ jobs:
           echo "--- artefacts ---"
           ls -l build/
 
+      # upload-artifact does not preserve symlinks, so every artefact is copied
+      # with -L (dereference) and the versioned symlinks are recreated when the
+      # archive is unpacked by the consumer.  The versioned real file is what
+      # carries the data; the unversioned name is a copy of it.
       - name: Collect artefacts (POSIX)
         if: runner.os != 'Windows'
         shell: bash
@@ -129,18 +133,32 @@ jobs:
           case "${{ runner.os }}" in
             Linux)
               cp build/libstl.a stage/
-              cp build/libstl.so.*. stage/libstl.so 2>/dev/null || true
-              cp -P build/libstl.so.1 stage/ 2>/dev/null || true
-              cp -P build/libstl.so.1.0.0 stage/ 2>/dev/null || true
+              cp -L build/libstl.so.1.0.0 stage/
+              cp -L build/libstl.so.1       stage/
+              cp -L build/libstl.so         stage/
               ;;
             macOS)
               cp build/libstl.a stage/
-              cp -P build/libstl.1.0.0.dylib stage/ 2>/dev/null || true
-              cp -P build/libstl.1.dylib stage/ 2>/dev/null || true
-              cp -P build/libstl.dylib stage/ 2>/dev/null || true
+              cp -L build/libstl.1.0.0.dylib stage/
+              cp -L build/libstl.1.dylib     stage/
+              cp -L build/libstl.dylib       stage/
               ;;
           esac
-          find stage -maxdepth 1 -type l -print
+          # Fail loudly if a library silently went missing, rather than
+          # publishing an archive with only the header in it.
+          for required in libstl.h; do
+            test -f "stage/$required" || { echo "missing $required"; exit 1; }
+          done
+          case "${{ runner.os }}" in
+            Linux)
+              for f in libstl.a libstl.so libstl.so.1 libstl.so.1.0.0; do
+                test -f "stage/$f" || { echo "missing $f"; exit 1; }
+              done ;;
+            macOS)
+              for f in libstl.a libstl.dylib; do
+                test -f "stage/$f" || { echo "missing $f"; exit 1; }
+              done ;;
+          esac
           ls -l stage/
 
       # ---------------- Windows (MSVC) ------------------------------------
@@ -154,6 +172,8 @@ jobs:
         run: |
           nmake /f Makefile.msvc clean
           nmake /f Makefile.msvc all
+          if not exist build\libstl.lib exit /b 1
+          if not exist build\libstl.dll exit /b 1
           nmake /f Makefile.msvc test
 
       - name: Collect artefacts (Windows)
@@ -164,6 +184,9 @@ jobs:
           copy libstl.h stage\
           copy build\libstl.lib stage\
           copy build\libstl.dll stage\
+          if not exist stage\libstl.dll exit /b 1
+          if not exist stage\libstl.lib exit /b 1
+          if not exist stage\libstl.h   exit /b 1
           dir stage
 
       - name: Upload ${{ matrix.artifact }}
