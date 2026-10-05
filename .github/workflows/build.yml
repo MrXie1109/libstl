@@ -97,6 +97,9 @@ jobs:
 
       - name: Build the reference
         run: |
+          # Older doxygen releases refuse to create OUTPUT_DIRECTORY, so it is
+          # made explicitly rather than relying on the tool to do it.
+          mkdir -p build
           doxygen Doxyfile
           test -f build/docs/html/index.html
           echo "generated $(find build/docs/html -name '*.html' | wc -l) pages"
